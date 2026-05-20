@@ -264,23 +264,33 @@ export function DoctorDashboard() {
             <h3 className="text-white font-semibold text-sm uppercase tracking-widest mb-4">
               Episodes by Day of Week
             </h3>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={episodesByDay} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="day" tick={{ fill: '#6b7280', fontSize: 11 }} />
-                <YAxis allowDecimals={false} tick={{ fill: '#6b7280', fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#111827',
-                    border: '1px solid #1f2937',
-                    borderRadius: 8,
-                    color: '#fff',
-                  }}
-                  formatter={(v) => (v == null ? ['', ''] : [v, 'Episodes'])}
-                />
-                <Bar dataKey="count" fill="#7c3aed" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {episodesByDay.every((d) => d.count === 0) ? (
+              <p className="text-gray-500 text-sm text-center py-6">No episodes recorded yet.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={episodesByDay} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                  <XAxis dataKey="day" tick={{ fill: '#6b7280', fontSize: 11 }} />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fill: '#6b7280', fontSize: 11 }}
+                    domain={[0, Math.max(1, ...episodesByDay.map((d) => d.count)) + 1]}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#111827',
+                      border: '1px solid #1f2937',
+                      borderRadius: 8,
+                      color: '#fff',
+                    }}
+                    formatter={(v) =>
+                      v == null ? ['', ''] : [`${Number(v).toFixed(0)}`, 'Episodes']
+                    }
+                  />
+                  <Bar dataKey="count" fill="#7c3aed" radius={4} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           {summary && (
@@ -358,9 +368,12 @@ export function DoctorDashboard() {
             </div>
           ) : (
             episodes.map((ep) => {
-              const analysis: EpisodeAnalysis | null = ep.analysis_json
-                ? JSON.parse(ep.analysis_json)
-                : null;
+              let analysis: EpisodeAnalysis | null = null;
+              try {
+                analysis = ep.analysis_json ? (JSON.parse(ep.analysis_json) as EpisodeAnalysis) : null;
+              } catch {
+                analysis = null;
+              }
               const riskLevel = analysis?.risk_level ?? 'medium';
               const color = RISK_COLORS[riskLevel] ?? RISK_COLORS.medium;
               const start = new Date(ep.start_time);
