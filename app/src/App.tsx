@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { AlertScreen } from './components/AlertScreen';
 import { DemoControls } from './components/DemoControls';
+import { DoctorDashboard } from './components/DoctorDashboard';
 import { ParentDashboard } from './components/ParentDashboard';
 import { StressMeter } from './components/StressMeter';
 import { useStressData } from './hooks/useStressData';
 import { useStressStore } from './store/stressStore';
 
-type Tab = 'monitor' | 'dashboard';
+type Tab = 'monitor' | 'dashboard' | 'doctor';
 
 export default function App() {
   useStressData();
@@ -51,7 +52,7 @@ export default function App() {
       {/* Tabs */}
       <nav className="border-b border-[#111827] px-4">
         <div className="max-w-2xl mx-auto w-full flex">
-          {(['monitor', 'dashboard'] as Tab[]).map((t) => (
+          {(['monitor', 'dashboard', 'doctor'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -78,8 +79,10 @@ export default function App() {
             />
             <DemoControls />
           </div>
-        ) : (
+        ) : tab === 'dashboard' ? (
           <ParentDashboard />
+        ) : (
+          <DoctorDashboard />
         )}
       </main>
     </div>

@@ -25,3 +25,38 @@ export interface Episode {
   duration_seconds: number;
   analysis_json: string | null;
 }
+
+export interface Datapoint {
+  id: number;
+  episode_id: number;
+  timestamp: string;
+  bpm: number;
+  stress: number;
+  rmssd: number;
+}
+
+export interface AnalyticsSummary {
+  total_episodes: number;
+  episodes_this_week: number;
+  episodes_this_month: number;
+  avg_peak_stress: number;
+  avg_duration_seconds: number;
+  risk_distribution: { low: number; medium: number; high: number };
+  trend: string;
+  top_triggers: { trigger: string; count: number }[];
+}
+
+export interface HeatmapCell {
+  day: number;
+  hour: number;
+  count: number;
+}
+
+export interface MedicalReport {
+  period: string;
+  generated_at: string;
+  summary: string;
+  findings: string[];
+  recommendations: string[];
+  risk_assessment: string;
+}

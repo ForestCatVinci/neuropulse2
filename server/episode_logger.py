@@ -28,7 +28,39 @@ async def init_db() -> None:
             )
             """
         )
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS episode_datapoints (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                episode_id INTEGER NOT NULL,
+                timestamp  TEXT    NOT NULL,
+                bpm        REAL    NOT NULL,
+                stress     REAL    NOT NULL,
+                rmssd      REAL    NOT NULL
+            )
+            """
+        )
         await db.commit()
+
+
+async def log_datapoints(episode_id: int, datapoints: list) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.executemany(
+            "INSERT INTO episode_datapoints (episode_id, timestamp, bpm, stress, rmssd) VALUES (?, ?, ?, ?, ?)",
+            [(episode_id, dp["ts"], dp["bpm"], dp["stress"], dp["rmssd"]) for dp in datapoints],
+        )
+        await db.commit()
+
+
+async def get_episode_datapoints(episode_id: int) -> list:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM episode_datapoints WHERE episode_id = ? ORDER BY timestamp",
+            (episode_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
 
 
 async def add_subscriber(chat_id: int) -> None:

@@ -3,9 +3,9 @@ import json
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
-from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / ".env")
@@ -15,9 +15,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from data_source import get_data_source
 from stress_engine import calculate_stress
-from episode_logger import init_db, log_episode, update_episode_analysis, get_episodes
+from episode_logger import (
+    init_db,
+    log_episode,
+    log_datapoints,
+    update_episode_analysis,
+    get_episodes,
+    get_episode_datapoints,
+)
 from ai_client import analyze_episode
 from telegram_notifier import TelegramNotifier, telegram_poll_loop
+from pattern_analyzer import get_summary, get_heatmap
+from report_generator import generate_report
 
 connected_clients: list[WebSocket] = []
 
@@ -26,6 +35,7 @@ _episode_active = False
 _episode_start: Optional[datetime] = None
 _episode_peak_stress = 0.0
 _episode_bpm_readings: list[float] = []
+_episode_datapoints: list[dict] = []
 
 # Telegram episode tracking (stress >= 70%)
 _tg_episode_active = False
@@ -45,6 +55,7 @@ async def _finish_episode(
     end_time: datetime,
     peak_stress: float,
     avg_bpm: float,
+    datapoints: list,
 ) -> None:
     episode_id = await log_episode(start_time, end_time, peak_stress, avg_bpm)
     analysis = await analyze_episode(
@@ -55,6 +66,8 @@ async def _finish_episode(
         day_of_week=start_time.strftime("%A"),
     )
     await update_episode_analysis(episode_id, json.dumps(analysis))
+    if datapoints:
+        await log_datapoints(episode_id, datapoints)
 
 
 async def _notify_resolved(peak_stress: float, avg_bpm: float, duration_min: int) -> None:
@@ -76,7 +89,7 @@ async def _notify_resolved(peak_stress: float, avg_bpm: float, duration_min: int
 
 
 async def broadcast_loop() -> None:
-    global _episode_active, _episode_start, _episode_peak_stress, _episode_bpm_readings
+    global _episode_active, _episode_start, _episode_peak_stress, _episode_bpm_readings, _episode_datapoints
     global _tg_episode_active, _tg_episode_start, _tg_peak_stress, _tg_bpm_readings
     global _last_stress, _last_bpm
     ds = get_data_source()
@@ -101,25 +114,37 @@ async def broadcast_loop() -> None:
                 }
             )
 
-            # DB episode detection (>= 90%)
+            # DB episode detection (>= 90%) — log every datapoint during episode
             if alert:
                 if not _episode_active:
                     _episode_active = True
                     _episode_start = datetime.utcnow()
                     _episode_peak_stress = stress
                     _episode_bpm_readings = [raw["bpm"]]
+                    _episode_datapoints = []
                 else:
                     _episode_peak_stress = max(_episode_peak_stress, stress)
                     _episode_bpm_readings.append(raw["bpm"])
+                _episode_datapoints.append(
+                    {
+                        "ts": datetime.utcnow().isoformat(),
+                        "bpm": raw["bpm"],
+                        "stress": stress,
+                        "rmssd": raw["rmssd"],
+                    }
+                )
             elif _episode_active:
                 _episode_active = False
                 end_time = datetime.utcnow()
+                captured = _episode_datapoints[:]
+                _episode_datapoints = []
                 asyncio.create_task(
                     _finish_episode(
                         _episode_start,  # type: ignore[arg-type]
                         end_time,
                         _episode_peak_stress,
                         sum(_episode_bpm_readings) / len(_episode_bpm_readings),
+                        captured,
                     )
                 )
 
@@ -208,6 +233,31 @@ async def websocket_endpoint(ws: WebSocket) -> None:
 @app.get("/episodes")
 async def episodes():
     return await get_episodes()
+
+
+@app.get("/episodes/{episode_id}/datapoints")
+async def episode_datapoints_endpoint(episode_id: int):
+    return await get_episode_datapoints(episode_id)
+
+
+@app.get("/analytics/summary")
+async def analytics_summary():
+    return await get_summary()
+
+
+@app.get("/analytics/heatmap")
+async def analytics_heatmap():
+    return await get_heatmap()
+
+
+@app.get("/report/weekly")
+async def report_weekly():
+    return await generate_report("weekly")
+
+
+@app.get("/report/monthly")
+async def report_monthly():
+    return await generate_report("monthly")
 
 
 @app.post("/demo/stress/{level}")
