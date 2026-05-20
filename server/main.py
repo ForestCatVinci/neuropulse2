@@ -29,6 +29,7 @@ from ai_client import analyze_episode
 from telegram_notifier import TelegramNotifier, telegram_poll_loop
 from pattern_analyzer import get_summary, get_heatmap
 from report_generator import generate_report
+from demo_seeder import seed_demo_data, clear_all_data
 
 connected_clients: list[WebSocket] = []
 
@@ -287,6 +288,18 @@ async def scenario_rising():
 @app.post("/demo/scenario/reset")
 async def scenario_reset():
     get_data_source().reset()
+    return {"ok": True}
+
+
+@app.post("/demo/seed")
+async def demo_seed():
+    count = await seed_demo_data()
+    return {"ok": True, "episodes_created": count}
+
+
+@app.post("/demo/clear")
+async def demo_clear():
+    await clear_all_data()
     return {"ok": True}
 
 
