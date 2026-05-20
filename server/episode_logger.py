@@ -41,6 +41,21 @@ async def init_db() -> None:
             """
         )
         await db.commit()
+        # Migrate: add parent_notes column if not present
+        try:
+            await db.execute("ALTER TABLE episodes ADD COLUMN parent_notes TEXT")
+            await db.commit()
+        except Exception:
+            pass  # column already exists
+
+
+async def save_parent_notes(episode_id: int, notes: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE episodes SET parent_notes = ? WHERE id = ?",
+            (notes, episode_id),
+        )
+        await db.commit()
 
 
 async def log_datapoints(episode_id: int, datapoints: list) -> None:

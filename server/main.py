@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
 from data_source import get_data_source
@@ -22,6 +23,7 @@ from episode_logger import (
     update_episode_analysis,
     get_episodes,
     get_episode_datapoints,
+    save_parent_notes,
 )
 from ai_client import analyze_episode
 from telegram_notifier import TelegramNotifier, telegram_poll_loop
@@ -233,6 +235,16 @@ async def websocket_endpoint(ws: WebSocket) -> None:
 @app.get("/episodes")
 async def episodes():
     return await get_episodes()
+
+
+class NotesBody(BaseModel):
+    notes: str
+
+
+@app.patch("/episodes/{episode_id}/notes")
+async def update_episode_notes(episode_id: int, body: NotesBody):
+    await save_parent_notes(episode_id, body.notes)
+    return {"ok": True}
 
 
 @app.get("/episodes/{episode_id}/datapoints")

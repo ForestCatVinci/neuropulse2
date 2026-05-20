@@ -164,6 +164,10 @@ export function DoctorDashboard() {
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [heatmap, setHeatmap] = useState<HeatmapCell[]>([]);
   const [expandedEp, setExpandedEp] = useState<number | null>(null);
+  const [editingEpId, setEditingEpId] = useState<number | null>(null);
+  const [editText, setEditText] = useState('');
+  const [savingEpId, setSavingEpId] = useState<number | null>(null);
+  const [localNotes, setLocalNotes] = useState<Record<number, string>>({});
   const [report, setReport] = useState<MedicalReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -360,6 +364,10 @@ export function DoctorDashboard() {
 
       {!loading && tab === 'episodes' && (
         <div className="flex flex-col gap-3">
+          <p className="text-gray-500 text-xs px-1">
+            Add your own observations to each episode — what you noticed around the time it happened.
+            The AI will use them when generating reports.
+          </p>
           {episodes.length === 0 ? (
             <div className="bg-[#111827] rounded-2xl p-10 text-center border border-white/5">
               <p className="text-gray-500 text-sm">
@@ -378,12 +386,19 @@ export function DoctorDashboard() {
               const color = RISK_COLORS[riskLevel] ?? RISK_COLORS.medium;
               const start = new Date(ep.start_time);
               const isExpanded = expandedEp === ep.id;
+              const isEditing = editingEpId === ep.id;
+              const isSaving = savingEpId === ep.id;
+              const savedNotes: string | null =
+                ep.id in localNotes
+                  ? (localNotes[ep.id] || null)
+                  : (ep.parent_notes ?? null);
 
               return (
                 <div
                   key={ep.id}
                   className="bg-[#111827] rounded-xl p-5 flex flex-col gap-3 border border-white/5"
                 >
+                  {/* Header */}
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-white font-medium text-sm">
                       {start.toLocaleDateString()} · {start.toLocaleTimeString()}
@@ -396,6 +411,7 @@ export function DoctorDashboard() {
                     </span>
                   </div>
 
+                  {/* Stats */}
                   <div className="flex gap-4 text-sm text-gray-400">
                     <span>
                       Peak{' '}
@@ -411,10 +427,11 @@ export function DoctorDashboard() {
                     </span>
                   </div>
 
+                  {/* AI analysis */}
                   {analysis && (
                     <div className="flex flex-col gap-1 pt-1 border-t border-white/5">
                       <p className="text-sm text-gray-300">
-                        <span className="text-purple-400 font-medium">Trigger: </span>
+                        <span className="text-purple-400 font-medium">AI trigger: </span>
                         {analysis.trigger}
                       </p>
                       <p className="text-sm text-gray-300">
@@ -424,12 +441,78 @@ export function DoctorDashboard() {
                     </div>
                   )}
 
-                  <button
-                    onClick={() => setExpandedEp(isExpanded ? null : ep.id)}
-                    className="text-xs text-purple-400 hover:text-purple-300 text-left transition-colors"
-                  >
-                    {isExpanded ? '▲ Hide timeline' : '▼ Show stress timeline'}
-                  </button>
+                  {/* Saved parent observations */}
+                  {savedNotes && !isEditing && (
+                    <div className="bg-amber-950/30 border border-amber-500/20 rounded-lg px-3 py-2.5">
+                      <p className="text-xs text-amber-400 font-medium mb-1">Your observations:</p>
+                      <p className="text-sm text-amber-100/80 leading-relaxed">{savedNotes}</p>
+                    </div>
+                  )}
+
+                  {/* Editing state */}
+                  {isEditing && (
+                    <div className="flex flex-col gap-2">
+                      <textarea
+                        autoFocus
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        placeholder="What did you notice? (environment, sounds, activity, food, sleep, mood, new situation...)"
+                        rows={3}
+                        className="w-full bg-[#0d1117] border border-amber-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-amber-400 leading-relaxed"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          disabled={isSaving}
+                          onClick={async () => {
+                            setSavingEpId(ep.id);
+                            try {
+                              await fetch(`${API_URL}/episodes/${ep.id}/notes`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ notes: editText }),
+                              });
+                              setLocalNotes((prev) => ({ ...prev, [ep.id]: editText }));
+                              setEditingEpId(null);
+                            } catch {
+                              // silent — notes stay in editing state on failure
+                            } finally {
+                              setSavingEpId(null);
+                            }
+                          }}
+                          className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors"
+                        >
+                          {isSaving ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => setEditingEpId(null)}
+                          className="px-4 py-1.5 bg-white/5 hover:bg-white/10 text-gray-400 text-xs rounded-lg transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bottom actions */}
+                  <div className="flex gap-4 pt-1 border-t border-white/5">
+                    {!isEditing && (
+                      <button
+                        onClick={() => {
+                          setEditingEpId(ep.id);
+                          setEditText(savedNotes ?? '');
+                        }}
+                        className="text-xs text-amber-500 hover:text-amber-400 transition-colors"
+                      >
+                        {savedNotes ? '✏️ Edit observations' : '+ Add observations'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setExpandedEp(isExpanded ? null : ep.id)}
+                      className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                    >
+                      {isExpanded ? '▲ Hide timeline' : '▼ Show stress timeline'}
+                    </button>
+                  </div>
 
                   {isExpanded && <EpisodeTimeline episodeId={ep.id} />}
                 </div>

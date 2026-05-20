@@ -24,6 +24,7 @@ export interface Episode {
   avg_bpm: number;
   duration_seconds: number;
   analysis_json: string | null;
+  parent_notes: string | null;
 }
 
 export interface Datapoint {

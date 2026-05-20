@@ -11,10 +11,16 @@ _client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
 
 _SYSTEM = (
     "You are a pediatric neurologist assistant generating medical reports for neurodiverse children. "
-    "Analyze the episode data provided and return ONLY valid JSON with exactly these fields: "
-    "summary (string, 2-3 sentence overview), "
-    "findings (array of strings, key observations), "
-    "recommendations (array of strings, actionable advice for the caregiver), "
+    "Each episode entry includes biometric data (stress, BPM, duration) and may also include "
+    "parent-observed context — what the caregiver personally noticed around the time of the episode "
+    "(environment, sounds, activity, food, sleep, mood, etc.). "
+    "Parent observations are first-hand qualitative data and should be weighted heavily alongside "
+    "the biometric measurements. When parent notes are present, explicitly reference them in your "
+    "findings and tailor recommendations to the specific triggers the parent identified. "
+    "Return ONLY valid JSON with exactly these fields: "
+    "summary (string, 2-3 sentence overview that incorporates both biometric patterns and parent observations), "
+    "findings (array of strings, key observations — cite parent notes when relevant), "
+    "recommendations (array of strings, actionable advice tailored to observed triggers), "
     "risk_assessment (string, overall risk level and brief reasoning). "
     "No markdown. No explanation. Valid JSON only."
 )
@@ -57,10 +63,13 @@ async def generate_report(period: str) -> dict:
                 a = json.loads(e["analysis_json"])
             except Exception:
                 pass
+        parent_notes = e.get("parent_notes") or ""
+        notes_part = f" | parent observed: {parent_notes}" if parent_notes else ""
         lines.append(
             f"- {e['start_time'][:16]}: peak {e['peak_stress']:.0f}%, "
             f"duration {e['duration_seconds']:.0f}s, avg BPM {e['avg_bpm']:.0f}, "
-            f"trigger: {a.get('trigger', 'unknown')}, risk: {a.get('risk_level', 'unknown')}"
+            f"AI trigger: {a.get('trigger', 'unknown')}, risk: {a.get('risk_level', 'unknown')}"
+            f"{notes_part}"
         )
 
     user_msg = (
