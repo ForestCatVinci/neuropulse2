@@ -16,14 +16,27 @@ from data_source import get_data_source
 from stress_engine import calculate_stress
 from episode_logger import init_db, log_episode, update_episode_analysis, get_episodes
 from ai_client import analyze_episode
+from telegram_notifier import TelegramNotifier, telegram_poll_loop
 
 connected_clients: list[WebSocket] = []
 
-# Episode tracking
+# DB episode tracking (stress >= 90%)
 _episode_active = False
 _episode_start: Optional[datetime] = None
 _episode_peak_stress = 0.0
 _episode_bpm_readings: list[float] = []
+
+# Telegram episode tracking (stress >= 70%)
+_tg_episode_active = False
+_tg_episode_start: Optional[datetime] = None
+_tg_peak_stress = 0.0
+_tg_bpm_readings: list[float] = []
+
+# Last known readings (for /nonverbal endpoint)
+_last_stress = 0.0
+_last_bpm = 0.0
+
+notifier = TelegramNotifier()
 
 
 async def _finish_episode(
@@ -43,8 +56,28 @@ async def _finish_episode(
     await update_episode_analysis(episode_id, json.dumps(analysis))
 
 
+async def _notify_resolved(peak_stress: float, avg_bpm: float, duration_min: int) -> None:
+    analysis = await analyze_episode(
+        peak_stress=peak_stress,
+        avg_bpm=avg_bpm,
+        duration_seconds=duration_min * 60,
+        time_of_day=datetime.now().strftime("%H:%M"),
+        day_of_week=datetime.now().strftime("%A"),
+    )
+    await notifier.send_alert(
+        "resolved",
+        {
+            "duration": duration_min,
+            "peak_stress": peak_stress,
+            "ai_analysis": analysis.get("recommendation", "Monitor closely"),
+        },
+    )
+
+
 async def broadcast_loop() -> None:
     global _episode_active, _episode_start, _episode_peak_stress, _episode_bpm_readings
+    global _tg_episode_active, _tg_episode_start, _tg_peak_stress, _tg_bpm_readings
+    global _last_stress, _last_bpm
     ds = get_data_source()
 
     while True:
@@ -52,6 +85,9 @@ async def broadcast_loop() -> None:
             raw = ds.read()
             stress = calculate_stress(raw["bpm"], raw["rmssd"])
             alert = stress >= 90.0
+
+            _last_stress = stress
+            _last_bpm = raw["bpm"]
 
             payload = json.dumps(
                 {
@@ -64,7 +100,7 @@ async def broadcast_loop() -> None:
                 }
             )
 
-            # Episode detection
+            # DB episode detection (>= 90%)
             if alert:
                 if not _episode_active:
                     _episode_active = True
@@ -86,7 +122,37 @@ async def broadcast_loop() -> None:
                     )
                 )
 
-            # Broadcast
+            # Telegram episode detection (>= 70%)
+            user = os.getenv("TELEGRAM_USER_NAME", "User")
+            tg_data = {"bpm": raw["bpm"], "stress": stress, "user": user}
+
+            if stress >= 70 and not _tg_episode_active:
+                _tg_episode_active = True
+                _tg_episode_start = datetime.now()
+                _tg_peak_stress = stress
+                _tg_bpm_readings = [raw["bpm"]]
+            elif _tg_episode_active:
+                _tg_peak_stress = max(_tg_peak_stress, stress)
+                _tg_bpm_readings.append(raw["bpm"])
+
+            if stress >= 70:
+                asyncio.create_task(notifier.send_alert("warning", tg_data))
+
+            if stress >= 90:
+                asyncio.create_task(notifier.send_alert("crisis", tg_data))
+
+            if stress < 40 and _tg_episode_active:
+                duration_min = int((datetime.now() - _tg_episode_start).total_seconds()) // 60  # type: ignore[operator]
+                peak = _tg_peak_stress
+                avg_bpm = sum(_tg_bpm_readings) / len(_tg_bpm_readings) if _tg_bpm_readings else raw["bpm"]
+                _tg_episode_active = False
+                _tg_episode_start = None
+                _tg_peak_stress = 0.0
+                _tg_bpm_readings = []
+                notifier.reset_episode()
+                asyncio.create_task(_notify_resolved(peak, avg_bpm, duration_min))
+
+            # Broadcast to WebSocket clients
             dead: list[WebSocket] = []
             for ws in list(connected_clients):
                 try:
@@ -106,9 +172,11 @@ async def broadcast_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    task = asyncio.create_task(broadcast_loop())
+    broadcast_task = asyncio.create_task(broadcast_loop())
+    poll_task = asyncio.create_task(telegram_poll_loop())
     yield
-    task.cancel()
+    broadcast_task.cancel()
+    poll_task.cancel()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -156,6 +224,16 @@ async def scenario_rising():
 @app.post("/demo/scenario/reset")
 async def scenario_reset():
     get_data_source().reset()
+    return {"ok": True}
+
+
+@app.post("/nonverbal/{button}")
+async def nonverbal(button: str):
+    user = os.getenv("TELEGRAM_USER_NAME", "User")
+    await notifier.send_alert(
+        "nonverbal",
+        {"button": button, "stress": _last_stress, "user": user},
+    )
     return {"ok": True}
 
 

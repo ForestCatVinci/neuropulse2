@@ -27,12 +27,23 @@ export default function App() {
           <span className="text-lg font-bold tracking-tight">
             <span className="text-purple-400">Neuro</span>Pulse
           </span>
-          <div className="flex items-center gap-2 text-sm">
-            <span
-              className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-red-500'}`}
-              style={{ boxShadow: connected ? '0 0 6px #4ade80' : '0 0 6px #f87171' }}
-            />
-            <span className="text-gray-400">{connected ? 'Connected' : 'Disconnected'}</span>
+          <div className="flex items-center gap-3">
+            <a
+              href="https://t.me/Mufasa101_bot"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#229ED9]/10 border border-[#229ED9]/30 text-[#229ED9] text-sm hover:bg-[#229ED9]/20 transition-colors"
+            >
+              <span>✈️</span>
+              <span>Alerts Bot</span>
+            </a>
+            <div className="flex items-center gap-2 text-sm">
+              <span
+                className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-red-500'}`}
+                style={{ boxShadow: connected ? '0 0 6px #4ade80' : '0 0 6px #f87171' }}
+              />
+              <span className="text-gray-400">{connected ? 'Connected' : 'Disconnected'}</span>
+            </div>
           </div>
         </div>
       </header>

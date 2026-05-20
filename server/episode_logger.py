@@ -21,7 +21,30 @@ async def init_db() -> None:
             )
             """
         )
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS telegram_subscribers (
+                chat_id INTEGER PRIMARY KEY
+            )
+            """
+        )
         await db.commit()
+
+
+async def add_subscriber(chat_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO telegram_subscribers (chat_id) VALUES (?)",
+            (chat_id,),
+        )
+        await db.commit()
+
+
+async def get_subscribers() -> list:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT chat_id FROM telegram_subscribers") as cursor:
+            rows = await cursor.fetchall()
+            return [row[0] for row in rows]
 
 
 async def log_episode(
