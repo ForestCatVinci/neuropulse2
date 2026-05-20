@@ -1,0 +1,25 @@
+import { motion } from 'framer-motion';
+
+const BUTTONS = [
+  { emoji: '🔇', label: 'Quiet' },
+  { emoji: '🏠', label: 'Go Home' },
+  { emoji: '🆘', label: 'Help' },
+] as const;
+
+export function NonverbalButtons() {
+  return (
+    <div className="flex gap-5 justify-center flex-wrap">
+      {BUTTONS.map(({ emoji, label }) => (
+        <motion.button
+          key={label}
+          whileTap={{ scale: 0.88 }}
+          whileHover={{ scale: 1.05 }}
+          className="flex flex-col items-center justify-center w-32 h-32 bg-white/10 rounded-3xl border-2 border-white/25 hover:bg-white/20 transition-colors select-none"
+        >
+          <span className="text-5xl leading-none">{emoji}</span>
+          <span className="text-white text-sm font-bold mt-2 tracking-wide">{label}</span>
+        </motion.button>
+      ))}
+    </div>
+  );
+}

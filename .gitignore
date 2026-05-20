@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.db
+*.sqlite
+.env
+
+# Node
+node_modules/
+dist/
+
+# Secrets
+OPENAI_API.txt
+
+# OS
+.DS_Store
+Thumbs.db

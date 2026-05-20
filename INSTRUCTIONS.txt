@@ -1,0 +1,290 @@
+═══════════════════════════════════════════════════
+NEUROPULSE — BUILD INSTRUCTIONS
+═══════════════════════════════════════════════════
+
+Build NeuroPulse from scratch. Read everything before
+writing any code. Follow all rules. Do not skip
+verification. The entire product language is English.
+
+───────────────────────────────────────────────────
+WHAT IS NEUROPULSE
+───────────────────────────────────────────────────
+
+NeuroPulse is a real-time sensory overload predictor
+for neurodiverse people — primarily children with
+autism or Tourette's syndrome.
+
+A wearable sensor reads the child's heart rate and
+heart rate variability continuously. The data flows
+to a server that calculates a stress score from 0
+to 100%. A caregiver watches the score rise on their
+phone. When stress hits 70% the UI turns yellow —
+a warning. At 90% the screen goes fullscreen red and
+shows three large nonverbal communication buttons so
+the child can signal what they need without speaking:
+🔇 Quiet, 🏠 Go home, 🆘 Help. After the episode the
+app uses Claude AI to analyze likely triggers and give
+the caregiver a recommendation.
+
+There is no real sensor yet. A simulator generates
+realistic biometric data so the full app works for
+demo and development today. Switching to a real
+ESP32 wristband later requires only one config change.
+
+───────────────────────────────────────────────────
+TECH STACK
+───────────────────────────────────────────────────
+
+Backend:  Python, FastAPI, Uvicorn, WebSocket,
+          SQLite (aiosqlite), Anthropic SDK
+Frontend: React 18, TypeScript, Vite, Tailwind CSS,
+          Zustand, Recharts, Framer Motion
+Deploy:   Backend → Railway, Frontend → Vercel
+
+───────────────────────────────────────────────────
+PROJECT STRUCTURE
+───────────────────────────────────────────────────
+
+neuropulse/
+├── server/
+│   ├── main.py
+│   ├── stress_engine.py
+│   ├── episode_logger.py
+│   ├── claude_client.py
+│   ├── requirements.txt
+│   ├── nixpacks.toml
+│   ├── .env               ← never commit
+│   ├── .gitignore
+│   └── data_source/
+│       ├── __init__.py    ← singleton factory
+│       ├── base.py
+│       ├── simulator.py
+│       └── device.py      ← stub for future ESP32
+└── app/
+    ├── src/
+    │   ├── config.ts
+    │   ├── App.tsx
+    │   ├── types/stress.ts
+    │   ├── store/stressStore.ts
+    │   ├── hooks/useStressData.ts
+    │   └── components/
+    │       ├── StressMeter.tsx
+    │       ├── DemoControls.tsx
+    │       ├── AlertScreen.tsx
+    │       ├── NonverbalButtons.tsx
+    │       └── ParentDashboard.tsx
+    ├── package.json
+    ├── vite.config.ts
+    └── .env.example
+
+───────────────────────────────────────────────────
+BACKEND RULES
+───────────────────────────────────────────────────
+
+CORS — Add CORSMiddleware as the very first middleware
+immediately after app = FastAPI(), before any route.
+Use allow_origins=["*"]. This is non-negotiable —
+skipping it blocks every frontend request.
+
+Port — Always bind to host 0.0.0.0 and read port from
+the PORT environment variable. Railway injects this at
+runtime. Never hardcode localhost or a port number.
+
+Simulator singleton — The simulator instance must be a
+single module-level object shared between the broadcast
+loop and all REST endpoints. If they hold separate
+instances, REST calls to change stress have no effect.
+
+nixpacks.toml — Railway won't find pip without this.
+Use nixPkgs ["python311", "python311Packages.pip"],
+install with "python3 -m pip install -r requirements.txt",
+start with "uvicorn main:app --host 0.0.0.0 --port $PORT".
+
+WebSocket broadcast — A background asyncio task (started
+in FastAPI lifespan) reads from the simulator every
+second, calculates stress, and broadcasts JSON to all
+connected clients. Format:
+  { bpm, stress, rmssd, rr_intervals, source, alert }
+alert is true when stress >= 90.
+
+Episode detection — Track stress crossing 90% threshold
+in the broadcast loop. When it drops back below 90, log
+the episode to SQLite and trigger Claude analysis as a
+background task (never block the broadcast loop).
+
+───────────────────────────────────────────────────
+SIMULATOR BEHAVIOR
+───────────────────────────────────────────────────
+
+stress_level is a float 0.0 (calm) to 1.0 (crisis).
+
+As stress_level rises:
+  BPM goes from 68 (resting) up to 96 (crisis)
+  RMSSD goes from 45ms (relaxed) down to ~15ms (crisis)
+  Both values have a subtle breathing sine wave and
+  small gaussian sensor noise added for realism.
+
+The simulator exposes set_stress(level), reset(), and
+start_rising() — an async task that smoothly increases
+stress from 0 to 1 over 30 seconds.
+
+Stress score formula: blend RMSSD deviation (70% weight)
+and BPM deviation from baseline (30% weight), clamp 0–100.
+
+───────────────────────────────────────────────────
+FRONTEND RULES
+───────────────────────────────────────────────────
+
+URLs — Never hardcode backend URLs. Use config.ts that
+reads VITE_WS_URL and VITE_API_URL env vars with
+localhost fallbacks for local development.
+
+Layout — No fixed pixel widths on any container ever.
+Use max-w-2xl mx-auto w-full px-4. The previous build
+had content stuck in the left third of the screen
+because of a hardcoded width — avoid this.
+
+WebSocket hook — Implement exponential backoff reconnect
+with delays 1s, 2s, 4s, 8s, 16s, 30s. Cap at 10
+retries. Clear all timers on unmount.
+
+───────────────────────────────────────────────────
+CRITICAL TYPESCRIPT — DO NOT DEVIATE
+───────────────────────────────────────────────────
+
+These three patterns caused Vercel build failures.
+Use the correct version exactly.
+
+1. EpisodeAnalysis can be null:
+   WRONG:   analysis.risk_level
+   CORRECT: analysis?.risk_level ?? 'low'
+
+2. Recharts tooltip formatter receives undefined:
+   WRONG:   formatter={(v: number) => [`${v}%`, 'Stress']}
+   CORRECT: formatter={(v) => v == null ? ['',''] : [`${Number(v).toFixed(0)}%`, 'Stress']}
+
+3. Episode analysis_json can be null:
+   WRONG:   JSON.parse(ep.analysis_json)
+   CORRECT: ep.analysis_json ? JSON.parse(ep.analysis_json) : null
+
+───────────────────────────────────────────────────
+UI AND DESIGN
+───────────────────────────────────────────────────
+
+Theme — Deep dark background (#030712), card surfaces
+(#111827), purple accent (#7c3aed) for tabs and primary
+actions. Calm, medical-grade feel — nothing harsh.
+
+Stress colors — Green (#22c55e) for 0–39%, yellow
+(#eab308) for 40–69%, orange (#f97316) for 70–89%,
+red (#ef4444) for 90–100%. These colors must appear
+on the meter, graph gradient, and episode badges.
+
+StressMeter — A large SVG circular progress ring that
+animates smoothly as stress changes. The stress
+percentage sits in the center in a large bold font.
+Color of ring and number transitions with stress level.
+Below the ring: BPM and RMSSD displayed as metric cards.
+
+Chart — Use Recharts AreaChart with a gradient fill that
+goes from green at the bottom (low stress) to red at the
+top (high stress). Add dashed reference lines at 70% and
+90%. Smooth monotone curve. Dark themed axes and grid.
+Show last 5 minutes of data (300 points at 1/sec).
+
+AlertScreen — Fullscreen overlay with dark red background
+that animates in with Framer Motion when stress hits 90%.
+Large warning icon, big clear text, NonverbalButtons.
+A dismiss button in the corner lets the caregiver close it.
+
+NonverbalButtons — Three large square buttons (minimum
+100×100px) with big emoji and a short label. Designed
+for a stressed child to tap — generous size, high
+contrast, satisfying press animation.
+
+DemoControls — A card with a slider (0–100%) that sets
+the simulator stress level in real time, and two buttons:
+Rising Stress (starts the 30-second scenario) and Reset.
+
+ParentDashboard — Two sections: the AreaChart on top,
+then a list of past episodes below. Each episode card
+shows time, duration, peak stress, AI-generated trigger
+and recommendation. Empty state with a friendly message.
+
+App shell — Two tabs: Monitor and Dashboard. Header shows
+the app name and a live connection status dot. The alert
+screen renders outside the tab system so it always appears.
+
+───────────────────────────────────────────────────
+VERIFICATION — MANDATORY BEFORE PUSHING
+───────────────────────────────────────────────────
+
+Run all checks and show me the actual terminal output.
+Do not push until every check passes.
+
+1. pip install works:
+   cd server && python3 -m pip install -r requirements.txt
+   Must exit 0.
+
+2. Server starts and episodes endpoint responds:
+   uvicorn main:app --host 0.0.0.0 --port 8000 &
+   sleep 3 && curl -s http://localhost:8000/episodes
+   Must return a JSON array.
+
+3. CORS header is present:
+   curl -s -D - -X OPTIONS http://localhost:8000/demo/stress/0.5 \
+     -H "Origin: https://test.vercel.app" \
+     -H "Access-Control-Request-Method: POST" \
+     | grep -i access-control-allow-origin
+   Must print: access-control-allow-origin: *
+
+4. REST endpoints work:
+   curl -s -X POST http://localhost:8000/demo/stress/0.5
+   curl -s -X POST http://localhost:8000/demo/scenario/rising
+   curl -s -X POST http://localhost:8000/demo/scenario/reset
+   All must return JSON with ok: true.
+
+5. TypeScript zero errors:
+   cd app && npx tsc --noEmit
+   Must print nothing.
+
+6. Frontend builds:
+   npm run build
+   Must exit 0.
+
+After all 6 pass → commit and push.
+
+───────────────────────────────────────────────────
+AI INTEGRATION — OPENAI (not Anthropic)
+───────────────────────────────────────────────────
+
+Use OpenAI API for episode analysis, not Anthropic.
+
+In requirements.txt use:
+  openai>=1.30.0
+Do not include anthropic.
+
+The analysis client (episode_logger_client.py or
+claude_client.py — rename it to ai_client.py) must:
+- Use AsyncOpenAI with api_key from OPENAI_API_KEY env var
+- Call model gpt-4o
+- Send episode data: peak stress %, average BPM, duration
+  in seconds, time of day, day of week
+- Ask for a JSON response with exactly these fields:
+    trigger: string — likely cause of the episode
+    recommendation: string — what the caregiver should do
+    risk_level: "low" | "medium" | "high"
+- Instruct the model in the system prompt to return only
+  valid JSON with no markdown, no explanation, nothing else
+- Parse the response with json.loads()
+- Wrap everything in try/except — on any failure return:
+    {"trigger": "Unknown", "recommendation": "Monitor closely", "risk_level": "medium"}
+
+In server .env add:
+  OPENAI_API_KEY=your_key_here
+
+In Railway Variables add:
+  OPENAI_API_KEY=your_key_here
+
+Everywhere the codebase references "claude_client" or
+"anthropic", rename/replace with the OpenAI equivalent.
