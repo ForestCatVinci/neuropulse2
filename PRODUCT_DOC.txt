@@ -1,0 +1,217 @@
+NEUROPULSE — PRODUCT DOCUMENTATION
+=====================================
+Version 1.0 | May 2026
+For pitch deck and investor presentation use
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. PRODUCT OVERVIEW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NeuroPulse is a real-time sensory overload prediction and monitoring system built for neurodiverse children — including those with autism spectrum disorder, ADHD, and sensory processing disorder. It reads a child's heart rate data continuously, detects the earliest physiological signs of a stress episode, and instantly alerts the people who care for that child: parents, caregivers, and the child's medical team.
+
+The problem NeuroPulse solves is invisible. Neurodiverse children often cannot communicate that they are becoming overwhelmed. By the time a meltdown is visible — a child screaming, shutting down, or running away — the physiological stress has been building for minutes. Caregivers have no warning, no data, and no way to identify what triggered the episode after the fact. Every episode without context is a missed opportunity to understand the child and prevent the next one.
+
+NeuroPulse gives caregivers that missing window. By measuring heart rate variability — the subtle beat-to-beat changes that reveal internal stress before outward signs appear — the system can detect that a child's nervous system is in crisis and notify a parent's phone within seconds. Over time it builds a full medical picture: when episodes happen, how severe they are, what triggers them, and whether the child's condition is improving or getting worse. This data, enriched by the parent's own observations, is automatically turned into a report a doctor can read and act on.
+
+NeuroPulse is designed for daily home use, school use, and clinical review. It runs on a small wearable sensor, connects through any wifi network, and displays on any smartphone or computer — no app download required.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. CORE FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REAL-TIME STRESS MONITOR
+The main dashboard shows the child's stress level as a live percentage (0–100), their current heart rate in beats per minute, and their heart rate variability score. All values update every second. A color-coded gauge goes from calm green through amber caution to red crisis, so a parent can read the child's state at a glance from across the room. When stress exceeds 90%, the entire screen flashes red with a full-screen alert.
+
+AUTOMATIC EPISODE DETECTION AND LOGGING
+When the child's stress rises above the crisis threshold and then falls back down, the system automatically records that event as an episode. It stores the exact start and end time, how long it lasted, the peak stress level reached, and the average heart rate throughout. Every episode is permanently saved for medical review. The system handles multiple episodes per day and never loses data.
+
+AI-POWERED EPISODE ANALYSIS
+After every episode ends, NeuroPulse sends the biometric data — timing, duration, peak stress, heart rate, day of week — to an AI assistant trained on pediatric neurology context. The AI identifies the most likely trigger (cafeteria noise, transition stress, fatigue, social conflict, etc.), assesses the risk level as low, medium, or high, and writes a specific actionable recommendation for the caregiver. This analysis is stored with every episode and feeds into all reports.
+
+PARENT OBSERVATIONS
+Parents know things the sensor cannot see: that today was picture day at school, that the child didn't sleep well, that the cafeteria served a new food. NeuroPulse gives parents a text field on every episode where they can record exactly what they noticed happening around the time of the stress event. These notes are stored alongside the biometric data and are passed directly to the AI when generating reports. A doctor reading the weekly report will see both the physiological pattern and the caregiver's first-hand observations together.
+
+STRESS TIMELINE PER EPISODE
+When a parent or doctor wants to understand how a specific episode unfolded, they can open it and see a second-by-second chart of stress and heart rate throughout the episode. This makes it possible to see whether stress rose suddenly or gradually, whether there was a clear peak, and how quickly the child recovered — all clinically relevant information.
+
+NONVERBAL COMMUNICATION BUTTONS
+Many neurodiverse children cannot speak when they are in distress. NeuroPulse provides large, labeled buttons ("I am overwhelmed", "Too loud", "I need help", "I need a break") that the child can press to communicate without words. Each button press sends an instant Telegram message to the parent with the button label and the child's current stress level. This gives a non-speaking child a voice during the moments they need it most.
+
+DOCTOR DASHBOARD — OVERVIEW
+The medical analytics tab opens with a summary of the child's episode history: total episodes all time, this week, and this month. It shows average peak stress level, average episode duration, and a breakdown of episodes by risk level (low/medium/high). A trend indicator shows whether the child's stress pattern is improving, stable, or worsening compared to the previous week. The top recurring triggers are listed in order of frequency.
+
+DOCTOR DASHBOARD — PATTERNS
+The patterns tab contains two visualizations. The first is a bar chart showing how many episodes occurred on each day of the past week, making it easy to spot whether certain days are consistently harder. The second is a heatmap — a grid of every hour in the week — where darker cells mean more episodes at that time. School lunch hours, morning arrivals, and bedtime transitions typically show up as hot spots immediately.
+
+DOCTOR DASHBOARD — EPISODES LIST
+The episodes tab lists every recorded episode in reverse chronological order. Each entry shows the date, time, duration, peak stress, and the AI's trigger assessment and risk level. Parent notes appear in amber text below the biometric data. Any episode can be expanded to show the full stress timeline chart. Parents can add or edit their observations directly from this view.
+
+WEEKLY AND MONTHLY AI MEDICAL REPORTS
+At any time, a doctor or parent can generate a medical report covering the past 7 or 30 days. The report is written by GPT-4o acting as a pediatric neurologist assistant. It contains a narrative summary of the period, a list of key findings (citing both biometric patterns and parent observations by name), specific actionable recommendations tailored to the triggers identified, and an overall risk assessment. The report is generated fresh each time so it always reflects the latest data.
+
+TELEGRAM ALERT BOT
+Parents receive instant push notifications on their phone via a Telegram bot — no app installation needed beyond Telegram, which most families already use. The bot sends four types of alerts: a warning when stress first exceeds 70%, a crisis alert when it exceeds 90%, a resolution message when stress drops back to calm after an episode (summarizing duration and peak), and nonverbal button messages from the child. Any number of family members can subscribe by sending one message to the bot.
+
+DEMO DATA MODE
+For presentations and evaluations, NeuroPulse includes a one-click demo mode. Pressing "Load Demo Month" instantly populates the system with 35 realistic episodes spread naturally across 30 days — school-hour clusters, varied triggers, parent notes, complete stress arc timelines — making all analytics, heatmaps, and reports fully functional for demonstration purposes. Pressing "Reset to Empty" wipes everything back to a clean state in seconds.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. TECHNICAL ARCHITECTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NeuroPulse is built in two parts: a server that processes sensor data and a web interface that displays it.
+
+The server is written in Python using FastAPI, a modern high-performance web framework. It runs a continuous loop that reads a new heart rate reading every second, calculates the stress score, checks for episode boundaries, sends Telegram alerts when needed, and broadcasts the result to every connected browser simultaneously. All episode data is stored in a SQLite database on the server. The server exposes both a WebSocket connection (for live streaming) and a REST API (for historical data, analytics, and report generation). It is deployed on Railway, a cloud hosting platform, and is accessible from anywhere on the internet.
+
+The web interface is built with React, a modern JavaScript framework, and runs entirely in the browser — there is nothing to install. It connects to the server via WebSocket and displays all live data with smooth animations and real-time chart updates. The analytics dashboards fetch historical data through the REST API. The interface is deployed on Vercel and works on any device including mobile phones. The entire application is a single URL.
+
+The AI analysis and report generation are handled by OpenAI's GPT-4o model. When an episode ends, the server sends a structured description of the episode to the AI and receives a JSON response with the trigger, recommendation, and risk level. When a report is requested, the server sends a full summary of all episodes in the period and the AI writes the complete medical report in natural language.
+
+The Telegram bot uses Telegram's Bot API. The server polls Telegram every two seconds for new subscriber messages. All outbound alerts are sent as formatted messages to every subscriber in the database.
+
+Data flows through the system in one direction: sensor → server → database and browser simultaneously → AI analysis appended to database → analytics and reports derived from database → Telegram notifications sent in parallel.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. DATA AND AI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+HOW STRESS IS CALCULATED
+The stress score is derived from two measurements taken simultaneously: heart rate in beats per minute (BPM) and RMSSD (Root Mean Square of Successive Differences between heartbeats).
+
+BPM alone is a blunt instrument. Exercise, excitement, and stress all raise the heart rate. RMSSD is far more sensitive and specific. It measures the variation between consecutive heartbeats — a healthy, relaxed nervous system shows natural variation in timing between beats, while a stressed or overwhelmed nervous system produces a rigid, machine-like rhythm with very little variation. RMSSD drops sharply during stress and anxiety even before heart rate climbs noticeably.
+
+NeuroPulse combines these two signals into a single 0–100% stress score. A low BPM with high RMSSD means the child is calm. A high BPM with low RMSSD means the child's nervous system is under significant strain. The combination catches stress states that neither signal would reveal alone.
+
+Two thresholds govern behavior: above 70% triggers a Telegram warning so the caregiver can check on the child; above 90% triggers a full crisis alert and begins logging the episode to the database.
+
+HOW AI IS USED
+GPT-4o is used in two distinct ways. The first is episode analysis: after each stress episode, the AI receives the episode's biometric profile (peak stress, average heart rate, duration, time of day, day of week) and reasons about the most likely cause. It returns a structured analysis with a specific trigger hypothesis, a tailored recommendation, and a risk classification. This runs automatically with no human involvement.
+
+The second use is medical report generation. When a doctor or parent requests a weekly or monthly report, the AI receives every episode from that period as structured data including any parent notes. The AI is instructed to act as a pediatric neurologist assistant, to treat parent observations as first-hand clinical data equal in weight to the biometric measurements, and to explicitly reference the parent's notes in its findings. The resulting report reads as a professional medical summary, not a data export.
+
+All AI outputs are stored in the database permanently and versioned with each episode. If the AI is unavailable, the system continues operating normally — it simply logs the episode without analysis until the next attempt.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. TELEGRAM NOTIFICATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NeuroPulse uses a Telegram bot to push alerts to caregivers in real time. Telegram was chosen because it is already installed on most parents' phones, requires no new app, works reliably on low-bandwidth connections, and delivers notifications even when the phone screen is locked.
+
+There are four types of alerts:
+
+WARNING — sent when stress first crosses 70%. The message shows the child's name, the current stress percentage, and the heart rate. This is an early signal that the child may be becoming overwhelmed and the caregiver should check in. To prevent alarm fatigue, warning alerts have a five-minute cooldown — the parent receives at most one warning message per five-minute window.
+
+CRISIS — sent when stress crosses 90%. This indicates a confirmed crisis episode. The crisis message is sent once per episode, not repeatedly, so it does not flood the parent's phone during a prolonged event.
+
+RESOLVED — sent when stress drops back below 40% after an episode. The message summarizes the completed episode: how long it lasted, the peak stress reached, and the AI's recommendation for the caregiver. This closes the loop so parents know the child has returned to a calm state.
+
+NONVERBAL — sent when the child presses one of the communication buttons on the interface. The message names the button pressed, shows the current stress level, and identifies the child by name. This allows a child who cannot speak during distress to still communicate their state instantly to their parent.
+
+Any family member, teacher, or caregiver can subscribe to receive alerts by opening the Telegram bot and sending a single message. All subscribers receive all alert types. Subscriptions are stored in the database and persist across server restarts.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. DOCTOR ANALYTICS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The Doctor Dashboard is designed to give a pediatric neurologist or child psychologist a complete longitudinal picture of the child's stress history in a single screen — without the parent having to fill out any forms, recall dates from memory, or describe an episode they may not have fully observed.
+
+WHAT DATA IS COLLECTED
+For every stress episode, the system stores: exact start and end timestamp, peak stress percentage, average heart rate during the episode, total duration in seconds, a full second-by-second trace of stress and heart rate values throughout the episode, the AI's trigger analysis and recommendation, the AI's risk classification, and any notes the parent added.
+
+WHAT PATTERNS ARE DETECTED
+The analytics engine automatically calculates: total episode counts across all time and within the current week and month; average peak stress and average episode duration; the distribution of episodes across risk levels; a week-over-week trend comparing this week's episode count to the previous week (reported as improving, stable, or worsening); and the top recurring trigger categories ranked by frequency. The heatmap visualization shows episode density by hour of day and day of week, making it immediately visible whether episodes cluster at school arrival, cafeteria lunch, end-of-school transitions, or bedtime — patterns that are almost impossible to identify from memory alone.
+
+WHAT THE MEDICAL REPORT CONTAINS
+The AI-generated report contains four sections. The summary is a two or three sentence narrative overview of the period that describes both the quantitative pattern and the qualitative context from parent observations. The findings are a bullet-pointed list of specific clinical observations, explicitly citing parent notes where relevant — for example noting that multiple episodes coincided with cafeteria noise based on both the timing pattern and the parent's written observations. The recommendations are practical, specific, and tailored to the triggers identified: not generic advice, but instructions linked to the actual circumstances of this child's episodes. The risk assessment provides an overall severity classification with brief reasoning.
+
+The report is generated on demand and always reflects the most current data. It is suitable for printing and bringing to a clinic appointment.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. HARDWARE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+THE SENSOR
+NeuroPulse is designed to work with an ESP32 microcontroller paired with a MAX30102 pulse oximeter and heart rate sensor. The MAX30102 uses infrared and red light to measure blood flow through the skin, extracting both heart rate in beats per minute and the raw RR interval data (the time between each individual heartbeat) needed to calculate RMSSD. The sensor clips onto a finger or can be integrated into a wristband, and the ESP32 transmits readings over WiFi to the NeuroPulse server.
+
+The total hardware cost for the sensor unit is under fifteen US dollars, making it accessible to families who cannot afford medical-grade biometric wearables.
+
+THE SIMULATOR
+For development, demonstration, and testing, NeuroPulse includes a built-in data simulator that generates realistic heart rate and RMSSD readings without any physical hardware. The simulator can be controlled from the interface: a slider sets the stress level directly, and a "Rising Stress" scenario gradually escalates from calm through warning to full crisis over thirty seconds, demonstrating the system's end-to-end behavior in real time.
+
+SWITCHING FROM SIMULATOR TO DEVICE
+When the physical ESP32 sensor is connected to the same network as the server, switching from simulator to real sensor requires changing a single configuration value in the server's environment settings. No code changes are needed. The system detects the data source type at startup and routes all sensor data through the same processing pipeline regardless of source.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. DEMO SCENARIO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The following is a step-by-step walkthrough of a live demonstration for judges or investors. The entire demo takes approximately five to eight minutes.
+
+Step 1 — Show the empty state. Open the app on the Monitor tab. The stress gauge reads zero, the episode list is empty, and the system shows "Disconnected" until the backend server responds. This establishes that the system starts clean. The backend connects within a few seconds and the live readings begin.
+
+Step 2 — Load one month of demo data. In the Demo Controls panel, click "Load Demo Month." The system generates thirty-five realistic stress episodes across thirty days with natural school-hour clustering, varied triggers, and parent notes. The page reloads automatically.
+
+Step 3 — Show the Doctor Dashboard overview. Navigate to the Doctor tab. The Overview screen shows total episode counts, average peak stress, risk distribution, the trend indicator, and the top triggers extracted from AI analysis. All data is real in structure — the same numbers a pediatric neurologist would review.
+
+Step 4 — Show the heatmap. Click on the Patterns tab. The hour-of-day heatmap lights up at school lunch hours, morning arrival, and evening bedtime transitions — the exact pattern expected for a neurodiverse child in a school environment. This is the insight a parent cannot get from memory.
+
+Step 5 — Open an episode. Go to the Episodes tab and click any episode to expand it. The stress arc timeline shows the rise, peak, and recovery of the episode second by second. The AI trigger analysis and risk level are displayed. If the episode has a parent note, it appears in amber text below.
+
+Step 6 — Show parent observations. Click the "Add observations" or "Edit observations" button on an episode. Type a context note in the textarea and save it. The note is immediately visible and will be incorporated into the next report generation.
+
+Step 7 — Generate a weekly report. Click the Report tab and press "Generate Weekly Report." After a few seconds, the AI medical report appears: a narrative summary, bullet-pointed clinical findings, specific recommendations, and a risk assessment — all written in language a doctor can use directly.
+
+Step 8 — Trigger a live crisis. Return to the Monitor tab. Click "Rising Stress." Watch the gauge climb from calm through amber warning at 70% to red crisis at 90%. The full-screen alert fires. If a phone has subscribed to the Telegram bot, the crisis notification arrives within one to two seconds.
+
+Step 9 — Show resolution. After the scenario ends and stress drops, the resolved Telegram message summarizes the episode and the AI recommendation.
+
+Step 10 — Show nonverbal buttons. Press one of the nonverbal buttons ("Too loud", "I need a break"). The Telegram notification arrives immediately, demonstrating that a child who cannot speak during distress still has a way to communicate.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. IMPACT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NeuroPulse addresses four problems that families of neurodiverse children face every day.
+
+THE INVISIBILITY PROBLEM. Stress in neurodiverse children is physiological before it becomes behavioral. By the time a meltdown is visible, it is already too late to prevent it. NeuroPulse detects the physiological onset seconds to minutes before behavioral signs appear and alerts the caregiver while there is still time to intervene — removing the child from the overwhelming environment, offering a sensory tool, or simply being present.
+
+THE COMMUNICATION PROBLEM. Many neurodiverse children are non-speaking or lose language under stress. They cannot say "I am overwhelmed" at the moment they most need to. NeuroPulse gives these children a set of large, clear buttons to press that send an immediate message to their caregiver — creating a communication channel that does not depend on speech.
+
+THE PATTERN BLINDNESS PROBLEM. Individual episodes are hard to remember accurately and impossible to analyze from memory alone. Parents often cannot tell whether their child is getting better or worse month to month, or which specific environments are most harmful. NeuroPulse records everything automatically and surfaces patterns — the cafeteria cluster, the Monday spike, the bedtime trend — that would otherwise remain invisible for years.
+
+THE CLINICAL DATA GAP PROBLEM. Pediatric neurologists treating neurodiverse children typically receive subjective parent recollections during quarterly appointments. NeuroPulse provides objective biometric data, timestamped and longitudinal, enriched with parent observations, packaged as a medical-grade report the doctor can review before the appointment. This transforms a brief clinical encounter based on memory into a data-driven review based on thirty days of continuous monitoring.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. FUTURE ROADMAP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DEDICATED WEARABLE DEVICE
+The current hardware prototype uses a finger clip sensor. The next hardware milestone is a wristband form factor — lightweight, comfortable for all-day wear by a child, with a rechargeable battery lasting at least twelve hours. The wristband would pair over Bluetooth to a parent's phone, eliminating the need for WiFi connectivity during school hours.
+
+PREDICTIVE ALERTS
+With enough episode history, the system can begin predicting stress before it occurs. Machine learning models trained on a child's individual episode patterns could send a caution message before the child enters a known high-risk situation — Monday morning before school, or thirty minutes before the regular homework period — giving caregivers time to prepare accommodations in advance rather than reacting to a crisis.
+
+MAP OF SAFE AND HIGH-RISK LOCATIONS
+By tagging episodes with GPS location from the parent's phone, NeuroPulse could build a personal map showing which places consistently cause stress for this child and which are reliably calming. This map would help families plan outings, choose routes, and identify which school environments need accommodation requests.
+
+SCHOOL INTEGRATION
+A teacher-facing view — separate from the medical dashboard, with age-appropriate access controls — would allow a school to see real-time stress levels for enrolled children and receive notifications when a student needs support. This requires school data agreements but could fundamentally change how teachers and aides respond to distress in the classroom.
+
+CAREGIVER MOBILE APPLICATION
+The current interface is a mobile-friendly website. A native iOS and Android app would add push notifications independent of Telegram, offline access to historical data, home screen widgets showing the current stress level at a glance, and background sensor connectivity without requiring the phone screen to stay on.
+
+MULTI-CHILD SUPPORT
+Many families have more than one neurodiverse child, and many schools have many neurodiverse students. Extending NeuroPulse to support multiple sensor profiles, each with independent episode histories, analytics, and alerts, would make it viable for schools, therapy centers, and families with several children requiring monitoring.
+
+CLINICAL TRIAL PARTNERSHIP
+NeuroPulse is built to the standard required for a clinical research tool. A formal partnership with a pediatric neurology clinic or research institution would validate the stress algorithm against clinical diagnosis, generate publishable data on early intervention outcomes, and create the evidence base required for reimbursement as a medical device.

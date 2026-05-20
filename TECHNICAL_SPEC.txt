@@ -1,0 +1,1044 @@
+NEUROPULSE — COMPLETE TECHNICAL SPECIFICATION
+=============================================
+Version 1.0 | May 2026
+All implementation details, algorithms, schemas, APIs, and configuration.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. TECH STACK — EXACT VERSIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BACKEND (server/)
+  Runtime:       Python 3.11+
+  Web framework: FastAPI >= 0.111.0
+  ASGI server:   Uvicorn >= 0.29.0 (with standard extras — includes websockets)
+  Database:      SQLite via aiosqlite >= 0.20.0 (async driver)
+  AI:            openai >= 1.30.0 (AsyncOpenAI client)
+  HTTP client:   httpx == 0.27.0 (for Telegram Bot API calls)
+  Config:        python-dotenv >= 1.0.0
+  WebSocket:     websockets >= 12.0
+
+FRONTEND (app/)
+  Runtime:       Node 18+ / browser
+  Framework:     React 18.3.1
+  Language:      TypeScript 5.4.5
+  Build tool:    Vite 5.3.1
+  Styling:       Tailwind CSS 3.4.4
+  State:         Zustand 4.5.2
+  Charts:        Recharts 2.12.7
+  Animation:     Framer Motion 11.2.10
+  Type gen:      @types/react 18.3.3
+
+DEPLOYMENT
+  Backend:       Railway (auto-deploy from GitHub, PORT env var injected)
+  Frontend:      Vercel (auto-deploy from GitHub, env vars in project settings)
+  Database:      SQLite file on Railway persistent volume (episodes.db)
+  AI:            OpenAI API (gpt-4o model)
+  Notifications: Telegram Bot API (polling, not webhooks)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. REPOSITORY STRUCTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+neuropulse-project/
+│
+├── server/
+│   ├── main.py               Entry point. FastAPI app, lifespan, all endpoints,
+│   │                         broadcast loop, episode state machine.
+│   ├── stress_engine.py      Pure function: (bpm, rmssd) → stress float 0–100.
+│   ├── episode_logger.py     All SQLite operations. DB path, table init, CRUD.
+│   ├── ai_client.py          Single-episode GPT-4o analysis call.
+│   ├── report_generator.py   Multi-episode GPT-4o medical report generation.
+│   ├── pattern_analyzer.py   Aggregate analytics: summary stats + heatmap.
+│   ├── telegram_notifier.py  TelegramNotifier class + poll loop + message formatter.
+│   ├── demo_seeder.py        Synthetic data generation + clear_all_data().
+│   ├── data_source.py        Simulator / real-sensor abstraction (singleton).
+│   ├── requirements.txt      Pinned Python dependencies.
+│   └── .env                  Secrets file. NEVER committed. (gitignored)
+│
+├── app/
+│   ├── src/
+│   │   ├── App.tsx            Root component. Tab routing, header, alert overlay.
+│   │   ├── config.ts          WS_URL and API_URL from Vite env vars.
+│   │   ├── hooks/
+│   │   │   └── useStressData.ts   WebSocket connect + episode poll hook.
+│   │   ├── store/
+│   │   │   └── stressStore.ts     Zustand global state store.
+│   │   ├── types/
+│   │   │   └── stress.ts          All TypeScript interfaces.
+│   │   └── components/
+│   │       ├── StressMeter.tsx      Live gauge + history sparkline.
+│   │       ├── AlertScreen.tsx      Full-screen red overlay on crisis.
+│   │       ├── ParentDashboard.tsx  Parent-facing episode list.
+│   │       ├── DoctorDashboard.tsx  4-tab medical analytics dashboard.
+│   │       ├── NonverbalButtons.tsx Child communication buttons.
+│   │       └── DemoControls.tsx     Stress simulator + data mode switcher.
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   └── tailwind.config.js
+│
+├── PRODUCT_DOC.txt
+├── TECHNICAL_SPEC.txt
+├── MESSAGE.txt / MESSAGE2.txt / MESSAGE3.txt  (task briefs, not shipped)
+└── .gitignore
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. ENVIRONMENT VARIABLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+server/.env  (local development — never committed)
+
+  OPENAI_API_KEY          Required. OpenAI secret key. Used by ai_client.py
+                          and report_generator.py via AsyncOpenAI(api_key=...).
+
+  TELEGRAM_BOT_TOKEN      Required for Telegram features. Format:
+                          <bot_id>:<hash>  e.g. 8120461992:AAH...
+                          If absent, Telegram sends are silently skipped and
+                          polling is disabled. The server still runs normally.
+
+  TELEGRAM_USER_NAME      Display name for the monitored child shown in all
+                          Telegram alert messages. Default: "User".
+
+  PORT                    Injected by Railway at runtime. Uvicorn binds to this.
+                          Default when absent: 8000.
+
+  DATA_SOURCE             Controls sensor backend. Value "real" activates the
+                          ESP32/MAX30102 reader. Any other value (or absent)
+                          uses the built-in simulator. Default: simulator.
+
+Frontend — Vercel project environment variables
+
+  VITE_API_URL            Full HTTPS URL of the Railway backend.
+                          Example: https://neuropulse.up.railway.app
+                          Falls back to: http://localhost:8000
+
+  VITE_WS_URL             Full WSS URL for the WebSocket connection.
+                          Example: wss://neuropulse.up.railway.app/ws
+                          Falls back to: ws://localhost:8000/ws
+
+  Note: Vite only exposes variables prefixed with VITE_ to the browser bundle.
+  Variables are inlined at build time, not at runtime.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. DATABASE SCHEMA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: episodes.db  (SQLite, single file, located in server/ working directory)
+Driver: aiosqlite — all operations are async; connections are opened and closed
+        per-operation (no connection pool — SQLite serialises writes natively).
+
+TABLE: episodes
+  id               INTEGER  PRIMARY KEY AUTOINCREMENT
+  start_time       TEXT     NOT NULL   ISO-8601 datetime string (UTC)
+  end_time         TEXT     NOT NULL   ISO-8601 datetime string (UTC)
+  peak_stress      REAL     NOT NULL   0.0 – 100.0
+  avg_bpm          REAL     NOT NULL   beats per minute
+  duration_seconds REAL     NOT NULL   (end_time - start_time).total_seconds()
+  analysis_json    TEXT     NULL       JSON string — see AI response schema below
+  parent_notes     TEXT     NULL       Free-text parent observations
+
+  Migration: parent_notes was added after initial schema via:
+    ALTER TABLE episodes ADD COLUMN parent_notes TEXT
+    Wrapped in try/except — SQLite has no IF NOT EXISTS for ALTER TABLE.
+    Safe to run multiple times; the exception is swallowed on duplicate.
+
+TABLE: episode_datapoints
+  id         INTEGER  PRIMARY KEY AUTOINCREMENT
+  episode_id INTEGER  NOT NULL   Foreign key → episodes.id (not enforced by SQLite)
+  timestamp  TEXT     NOT NULL   ISO-8601 datetime string (UTC)
+  bpm        REAL     NOT NULL
+  stress     REAL     NOT NULL   0.0 – 100.0
+  rmssd      REAL     NOT NULL
+
+  Datapoints are bulk-inserted after each episode closes using executemany().
+  There is no CASCADE delete — orphaned datapoints persist if an episode is
+  manually deleted from the DB.
+
+TABLE: telegram_subscribers
+  chat_id  INTEGER  PRIMARY KEY
+
+  INSERT OR IGNORE prevents duplicates when a user sends /start multiple times.
+  No unsubscribe mechanism currently implemented.
+
+QUERY PATTERNS
+  get_episodes():        SELECT * FROM episodes ORDER BY start_time DESC LIMIT 20
+  get_episode_datapoints(id): SELECT * FROM episode_datapoints WHERE episode_id = ?
+                              ORDER BY timestamp
+  get_summary():         SELECT * FROM episodes  (full table scan; acceptable at
+                         current scale of ~hundreds of rows)
+  get_heatmap():         SELECT start_time FROM episodes
+  generate_report():     SELECT * FROM episodes WHERE start_time >= ? ORDER BY start_time
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. STRESS CALCULATION ALGORITHM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: server/stress_engine.py
+Function: calculate_stress(bpm: float, rmssd: float) -> float
+
+CALIBRATION CONSTANTS
+  BPM_REST  =  68.0   Resting heart rate (calm baseline)
+  BPM_MAX   =  96.0   Upper heart rate reference for normalization
+  RMSSD_REST = 45.0   Resting RMSSD (calm baseline — high HRV = low stress)
+  RMSSD_MIN  = 15.0   Minimum expected RMSSD under high stress
+
+RMSSD SCORE  (primary signal, weight 0.7)
+  rmssd_score = (RMSSD_REST - rmssd) / (RMSSD_REST - RMSSD_MIN)
+              = (45 - rmssd) / (45 - 15)
+              = (45 - rmssd) / 30
+  Clamped to [0.0, 1.0].
+  When rmssd = 45 (rest): score = 0.0  (no stress)
+  When rmssd = 15 (crisis): score = 1.0  (maximum stress)
+  When rmssd < 15: clamped to 1.0
+
+BPM SCORE  (secondary signal, weight 0.3)
+  bpm_score = (bpm - BPM_REST) / (BPM_MAX - BPM_REST)
+            = (bpm - 68) / (96 - 68)
+            = (bpm - 68) / 28
+  Clamped to [0.0, 1.0].
+  When bpm = 68 (rest): score = 0.0
+  When bpm = 96 (elevated): score = 1.0
+  When bpm > 96: clamped to 1.0
+
+COMBINED STRESS
+  stress = (0.7 × rmssd_score + 0.3 × bpm_score) × 100
+  Final value clamped to [0.0, 100.0] and rounded to 1 decimal place.
+
+DESIGN RATIONALE
+  RMSSD is weighted 70% because it is a direct measure of autonomic nervous
+  system state. Heart rate elevation is a lagging indicator that also rises
+  during exercise and excitement. RMSSD specifically drops under psychological
+  and sensory stress even when heart rate has not yet changed significantly,
+  giving earlier detection of the onset of a stress episode.
+
+THRESHOLDS
+  >= 70.0  Telegram warning alert (with 5-minute cooldown)
+  >= 90.0  Telegram crisis alert + DB episode logging begins
+  <  40.0  Episode resolution (if a Telegram episode was active)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. BROADCAST LOOP AND EPISODE STATE MACHINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: server/main.py
+Function: broadcast_loop() — runs as an asyncio Task for the lifetime of the app.
+Tick rate: 1 second (asyncio.sleep(1) at end of each iteration).
+
+MODULE-LEVEL STATE (two parallel episode trackers)
+
+  DB EPISODE TRACKER (threshold: stress >= 90.0)
+    _episode_active:       bool     Is a crisis episode currently open?
+    _episode_start:        datetime When the current episode started (UTC)
+    _episode_peak_stress:  float    Highest stress seen in current episode
+    _episode_bpm_readings: list     All BPM values seen during episode (for avg)
+    _episode_datapoints:   list     Dicts {ts, bpm, stress, rmssd} per tick
+
+  TELEGRAM EPISODE TRACKER (threshold: stress >= 70.0)
+    _tg_episode_active:    bool     Is a warning-level episode open?
+    _tg_episode_start:     datetime (uses local time, not UTC)
+    _tg_peak_stress:       float
+    _tg_bpm_readings:      list
+
+  LAST KNOWN READINGS (for /nonverbal endpoint)
+    _last_stress:          float
+    _last_bpm:             float
+
+LOOP LOGIC PER TICK
+
+  1. Read from data source: raw = ds.read()
+     Returns dict: {bpm, rmssd, rr_intervals, source}
+
+  2. Calculate stress: stress = calculate_stress(raw["bpm"], raw["rmssd"])
+
+  3. Update _last_stress, _last_bpm.
+
+  4. Build JSON payload for WebSocket broadcast:
+     {bpm, stress, rmssd, rr_intervals, source, alert}
+     alert = (stress >= 90.0)  — boolean
+
+  5. DB EPISODE STATE MACHINE:
+     if stress >= 90:
+       if NOT _episode_active:
+         → Open new episode: set _episode_active=True, record _episode_start,
+           reset _episode_peak_stress, _episode_bpm_readings, _episode_datapoints
+       else:
+         → Update: max peak, append BPM
+       → Always: append datapoint to _episode_datapoints
+     elif _episode_active:  (stress dropped below 90, episode just ended)
+       → Close episode: set _episode_active=False
+       → Snapshot datapoints list (copy before clearing)
+       → asyncio.create_task(_finish_episode(...))  — fire-and-forget
+         _finish_episode():
+           1. await log_episode(start, end, peak, avg_bpm) → episode_id
+           2. await analyze_episode(peak, avg_bpm, duration, time, day) → analysis dict
+           3. await update_episode_analysis(episode_id, json.dumps(analysis))
+           4. await log_datapoints(episode_id, captured_datapoints)
+
+  6. TELEGRAM EPISODE STATE MACHINE:
+     if stress >= 70 and NOT _tg_episode_active:
+       → Open Telegram episode: record start, peak, bpm list
+     elif _tg_episode_active:
+       → Update: max peak, append BPM
+
+     if stress >= 70:
+       → asyncio.create_task(notifier.send_alert("warning", {...}))
+     if stress >= 90:
+       → asyncio.create_task(notifier.send_alert("crisis", {...}))
+
+     if stress < 40 and _tg_episode_active:
+       → Close Telegram episode
+       → Calculate duration in minutes
+       → asyncio.create_task(_notify_resolved(peak, avg_bpm, duration_min))
+         _notify_resolved():
+           1. await analyze_episode(...)  — get AI recommendation
+           2. await notifier.send_alert("resolved", {...})
+       → notifier.reset_episode()  — allows next crisis alert to fire
+
+  7. WEBSOCKET BROADCAST:
+     for ws in list(connected_clients):
+       await ws.send_text(payload)
+     Dead connections (any exception) are collected and removed.
+
+  8. await asyncio.sleep(1)
+
+NOTE ON CONCURRENCY:
+  asyncio.create_task() is used for all I/O-bound operations that should not
+  block the broadcast loop tick (DB writes, AI calls, Telegram sends). The
+  loop never awaits these tasks directly. Exceptions inside tasks are silently
+  dropped — the outer loop has a bare except: pass as final safety net.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. REST API — ALL ENDPOINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+All endpoints use JSON. CORS is open (*) — any origin, any method, any headers,
+credentials allowed. Defined in FastAPI using CORSMiddleware.
+
+WebSocket
+  WS /ws
+    Client connects, server adds to connected_clients list.
+    Server sends JSON text frames every ~1 second:
+      { "bpm": float, "stress": float, "rmssd": float,
+        "rr_intervals": [float, ...], "source": string, "alert": boolean }
+    Client sends: anything (ignored — server only uses receive_text() to detect disconnect).
+    On disconnect: WebSocketDisconnect exception → removed from list.
+
+Episodes
+  GET /episodes
+    Response: array of episode objects (max 20, sorted start_time DESC)
+    Episode object:
+      { "id": int, "start_time": str, "end_time": str, "peak_stress": float,
+        "avg_bpm": float, "duration_seconds": float,
+        "analysis_json": str|null, "parent_notes": str|null }
+
+  PATCH /episodes/{episode_id}/notes
+    Body: { "notes": string }  (Pydantic NotesBody model)
+    Action: UPDATE episodes SET parent_notes = ? WHERE id = ?
+    Response: { "ok": true }
+
+  GET /episodes/{episode_id}/datapoints
+    Response: array of datapoint objects, sorted by timestamp ASC
+    Datapoint object:
+      { "id": int, "episode_id": int, "timestamp": str,
+        "bpm": float, "stress": float, "rmssd": float }
+
+Analytics
+  GET /analytics/summary
+    Response: AnalyticsSummary object
+      { "total_episodes": int,
+        "episodes_this_week": int,
+        "episodes_this_month": int,
+        "avg_peak_stress": float,
+        "avg_duration_seconds": float,
+        "risk_distribution": { "low": int, "medium": int, "high": int },
+        "trend": "improving"|"stable"|"worsening",
+        "top_triggers": [ { "trigger": str, "count": int }, ... ]  (max 5) }
+
+  GET /analytics/heatmap
+    Response: array of HeatmapCell objects
+      [ { "day": int(0-6, Mon=0), "hour": int(0-23), "count": int }, ... ]
+    Only cells with count > 0 are returned.
+
+Reports
+  GET /report/weekly
+    Generates AI report covering last 7 days.
+    Response: MedicalReport object
+      { "period": "weekly", "generated_at": str,
+        "summary": str, "findings": [str, ...],
+        "recommendations": [str, ...], "risk_assessment": str }
+
+  GET /report/monthly
+    Same as above but covers last 30 days. period = "monthly".
+
+Demo — Stress Simulator
+  POST /demo/stress/{level}
+    Path param: level float (0.0 – 1.0, where 1.0 = 100% stress)
+    Action: calls data_source.set_stress(level)
+    Response: { "ok": true }
+
+  POST /demo/scenario/rising
+    Action: calls await data_source.start_rising()
+    Runs an async scenario: stress rises gradually from 0 to 0.95 over ~30 ticks.
+    Response: { "ok": true }
+
+  POST /demo/scenario/reset
+    Action: calls data_source.reset()
+    Response: { "ok": true }
+
+Demo — Data Mode
+  POST /demo/seed
+    Action: calls await seed_demo_data()
+    Inserts ~35 synthetic episodes with datapoints across the past 30 days.
+    Response: { "ok": true, "episodes_created": int }
+
+  POST /demo/clear
+    Action: calls await clear_all_data()
+    Deletes all rows from episode_datapoints, episodes, resets sqlite_sequence.
+    Response: { "ok": true }
+
+Nonverbal
+  POST /nonverbal/{button}
+    Path param: button string — one of "quiet", "home", "help"
+    Action: reads _last_stress and _last_bpm from module globals,
+            calls await notifier.send_alert("nonverbal", {...})
+    Response: { "ok": true }
+
+App Lifespan
+  On startup: await init_db(), start broadcast_loop task, start telegram_poll_loop task.
+  On shutdown: cancel both tasks.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. AI INTEGRATION — EPISODE ANALYSIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: server/ai_client.py
+Client: AsyncOpenAI (singleton module-level instance)
+Model: gpt-4o
+
+SYSTEM PROMPT (verbatim):
+  "You analyze sensory overload episodes for neurodiverse children.
+   Return ONLY valid JSON with exactly these three fields:
+   trigger (string — likely cause),
+   recommendation (string — what the caregiver should do next),
+   risk_level (exactly one of: low, medium, high).
+   No markdown. No explanation. Nothing else."
+
+USER MESSAGE FORMAT:
+  "Peak stress: {peak_stress:.0f}%.
+   Average BPM: {avg_bpm:.0f}.
+   Duration: {duration_seconds:.0f} seconds.
+   Time of day: {time_of_day}.   ← format: "HH:MM"
+   Day of week: {day_of_week}."  ← format: "Monday", "Tuesday", etc.
+
+RESPONSE SCHEMA (what the model returns):
+  { "trigger": string, "recommendation": string, "risk_level": "low"|"medium"|"high" }
+
+FALLBACK (on any exception — network, parse error, API error):
+  { "trigger": "Unknown",
+    "recommendation": "Monitor closely and remove the child from overstimulating environments.",
+    "risk_level": "medium" }
+
+CALLED FROM:
+  1. _finish_episode() — immediately after each DB episode closes (via asyncio.create_task)
+  2. _notify_resolved() — to get a recommendation text to include in the resolved Telegram message
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. AI INTEGRATION — MEDICAL REPORT GENERATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: server/report_generator.py
+Client: AsyncOpenAI (separate module-level instance)
+Model: gpt-4o
+
+SYSTEM PROMPT (verbatim):
+  "You are a pediatric neurologist assistant generating medical reports for neurodiverse children.
+   Each episode entry includes biometric data (stress, BPM, duration) and may also include
+   parent-observed context — what the caregiver personally noticed around the time of the episode
+   (environment, sounds, activity, food, sleep, mood, etc.).
+   Parent observations are first-hand qualitative data and should be weighted heavily alongside
+   the biometric measurements. When parent notes are present, explicitly reference them in your
+   findings and tailor recommendations to the specific triggers the parent identified.
+   Return ONLY valid JSON with exactly these fields:
+   summary (string, 2-3 sentence overview that incorporates both biometric patterns and parent observations),
+   findings (array of strings, key observations — cite parent notes when relevant),
+   recommendations (array of strings, actionable advice tailored to observed triggers),
+   risk_assessment (string, overall risk level and brief reasoning).
+   No markdown. No explanation. Valid JSON only."
+
+USER MESSAGE FORMAT:
+  "Period: last {7|30} days
+   Total episodes: {N}
+
+   - {start_time[:16]}: peak {peak_stress:.0f}%, duration {duration_seconds:.0f}s,
+     avg BPM {avg_bpm:.0f}, AI trigger: {trigger}, risk: {risk_level}
+     | parent observed: {parent_notes}   ← only if parent_notes is not null/empty
+   ..."
+
+RESPONSE SCHEMA:
+  { "summary": string,
+    "findings": [string, ...],
+    "recommendations": [string, ...],
+    "risk_assessment": string }
+
+FINAL RETURNED OBJECT:
+  { "period": "weekly"|"monthly",
+    "generated_at": ISO-8601 UTC string,
+    "summary": ..., "findings": ..., "recommendations": ..., "risk_assessment": ... }
+
+NO-EPISODES FAST PATH (skips AI call):
+  If no episodes in the period:
+  { "period": ..., "generated_at": ...,
+    "summary": "No episodes recorded in the past {7|30} days.",
+    "findings": [],
+    "recommendations": ["Continue monitoring. No episodes to analyze."],
+    "risk_assessment": "Low — no episodes in the selected period." }
+
+FALLBACK (on any exception):
+  { "summary": "Unable to generate report at this time. Please try again later.",
+    "findings": [],
+    "recommendations": ["Consult with a healthcare provider for a manual review."],
+    "risk_assessment": "Assessment unavailable." }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. TELEGRAM BOT — FULL SPECIFICATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: server/telegram_notifier.py
+HTTP client: httpx.AsyncClient (new instance per send, timeout=10s)
+API base: https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/
+
+CLASS: TelegramNotifier
+  State:
+    _warning_last: Optional[datetime]   Timestamp of last sent warning (local time)
+    _crisis_sent:  bool                 Whether crisis was already sent this episode
+
+  Methods:
+    send_alert(event, data) → None
+      Called from broadcast_loop via asyncio.create_task (fire-and-forget).
+
+      RATE LIMITING:
+        "warning" event: skip if (now - _warning_last) < 5 minutes
+                         update _warning_last on send
+        "crisis" event:  skip if _crisis_sent is True
+                         set _crisis_sent = True on first send
+        "nonverbal" and "resolved" events: no rate limiting
+
+      Fetches subscriber list from DB (get_subscribers()).
+      For each subscriber: asyncio.create_task(_send(token, chat_id, text))
+
+    reset_episode() → None
+      Sets _crisis_sent = False.
+      Called by main.py when stress drops below 40% (Telegram episode closes).
+      Allows the next episode's crisis alert to fire.
+
+MESSAGE TEMPLATES (Telegram Markdown format):
+
+  WARNING (event="warning"):
+    ⚠️ *Stress Rising — Warning*
+    👤 User: {TELEGRAM_USER_NAME}
+    💓 Heart Rate: {bpm:.0f} BPM
+    📊 Stress Level: {stress:.0f}%
+    🕐 Time: {HH:MM}
+    Please check on them.
+
+  CRISIS (event="crisis"):
+    🚨 *CRISIS — Immediate Attention Needed*
+    👤 User: {TELEGRAM_USER_NAME}
+    💓 Heart Rate: {bpm:.0f} BPM
+    📊 Stress Level: {stress:.0f}%
+    🕐 Time: {HH:MM}
+    Your child needs help right now.
+
+  NONVERBAL (event="nonverbal"):
+    Button label mapping:
+      "quiet" → "🔇 Needs quiet"
+      "home"  → "🏠 Wants to go home"
+      "help"  → "🆘 Needs help"
+      (any other) → raw button value
+
+    📢 *Non-verbal Signal*
+    👤 {user} sent: {label}
+    📊 Stress at signal: {stress:.0f}%
+    🕐 Time: {HH:MM}
+
+  RESOLVED (event="resolved"):
+    ✅ *Episode Resolved*
+    ⏱ Duration: {duration_min} min
+    📈 Peak stress: {peak_stress:.0f}%
+    🧠 AI insight: {recommendation from analyze_episode()}
+
+  SUBSCRIPTION CONFIRMATION (on /start):
+    ✅ You are now subscribed to NeuroPulse alerts!
+
+POLL LOOP: telegram_poll_loop()
+  Runs as asyncio Task from lifespan.
+  Uses Telegram long-polling: GET /getUpdates?timeout=30&offset={offset}&allowed_updates=["message"]
+  httpx timeout set to 35s (must exceed Telegram's 30s poll timeout).
+  On each update:
+    - Advance offset to update_id + 1 (prevents re-processing)
+    - If message text == "/start": save chat_id via add_subscriber(), send confirmation
+  On any exception: log, sleep 5 seconds, retry.
+  Only the "/start" command is handled. All other messages are silently ignored.
+
+SEND FUNCTION: _send(token, chat_id, text)
+  POST https://api.telegram.org/bot{token}/sendMessage
+  Body: { "chat_id": int, "text": str, "parse_mode": "Markdown" }
+  Timeout: 10 seconds.
+  Failures are logged but not re-tried.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. DATA SIMULATOR
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: server/data_source.py
+Pattern: singleton — get_data_source() returns the same instance for the
+         entire process lifetime (module-level _instance variable).
+         This ensures the demo stress slider and /demo/scenario endpoints
+         all operate on the same simulator state regardless of which
+         FastAPI worker handles the request.
+
+The simulator generates a synthetic reading each time read() is called:
+  - Base BPM varies around a resting value with small random noise
+  - RMSSD varies inversely with the injected stress level
+  - rr_intervals is a list of synthetic inter-beat intervals
+  - source field = "simulator" (vs "esp32" for the real sensor)
+
+set_stress(level: float):
+  Injects a target stress level (0.0–1.0). The simulator translates this to
+  appropriate BPM and RMSSD values that will produce the desired stress score
+  from calculate_stress().
+
+start_rising() [async]:
+  Runs a coroutine that gradually increments the injected stress level from 0
+  to 0.95 in small steps over approximately 30 seconds, simulating a realistic
+  stress escalation episode for live demonstrations.
+
+reset():
+  Sets injected stress back to 0 (calm baseline).
+
+Real sensor mode (DATA_SOURCE=real):
+  Reads from the ESP32 over a serial or network interface.
+  The read() interface is identical so the rest of main.py is unaffected.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. DEMO SEEDER — SYNTHETIC DATA GENERATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: server/demo_seeder.py
+
+seed_demo_data() → int  (returns number of episodes created)
+  Iterates day_offset from 30 down to 1 (generates 29 days of history,
+  ending yesterday).
+
+  PER-DAY EPISODE COUNT (random weighted choice):
+    Weekday (Mon–Fri):  0 episodes: 5%  / 1: 35% / 2: 40% / 3: 20%
+    Weekend (Sat–Sun):  0 episodes: 30% / 1: 50% / 2: 20%
+
+  EPISODE TIMING — SCHOOL DAY HOUR WEIGHTS:
+    08:00 → 15%   (school arrival, morning anxiety)
+    09:00 →  7%   (class start)
+    11:00 → 12%   (pre-lunch anticipation)
+    12:00 → 18%   (cafeteria — highest weight)
+    13:00 →  6%   (post-lunch transition)
+    15:00 → 12%   (end of school day)
+    17:00 → 12%   (homework / after-school)
+    18:00 →  8%   (dinner / evening transition)
+    20:00 → 10%   (bedtime routine)
+
+  EPISODE TIMING — WEEKEND HOUR WEIGHTS:
+    10:00 → 10%  / 12:00 → 13%  / 14:00 → 16%
+    16:00 → 18%  / 17:00 → 15%  / 19:00 → 15%  / 20:00 → 13%
+
+  Multiple episodes on the same day use different hours (de-duplication
+  with up to 10 attempts per episode).
+
+  EPISODE DURATION (random weighted choice):
+    30–90 s:    20%  (short spike)
+    90–300 s:   40%  (moderate episode)
+    300–900 s:  30%  (sustained episode)
+    900–1500 s: 10%  (prolonged crisis)
+
+  BIOMETRIC VALUES:
+    peak_stress: uniform random float in [90.0, 99.0], rounded to 1 decimal
+    avg_bpm:     uniform random float in [95.0, 145.0], rounded to 1 decimal
+
+  SCENARIOS (17 predefined):
+    Each scenario contains: trigger, recommendation, risk_level, parent_note.
+    One scenario is chosen at random per episode.
+    Parent note is used with 72% probability (random() > 0.28).
+    When not used, parent_notes is stored as NULL.
+
+  SYNTHETIC DATAPOINTS (stress arc per episode):
+    Number of points: max(4, duration_seconds // 5)
+    Arc shape (fraction of episode elapsed):
+      0–25%:   stress rises from 70% to peak_stress linearly
+      25–60%:  stress holds at peak with ±3% noise
+      60–100%: stress falls from peak back toward 72% linearly
+    BPM: avg_bpm ± uniform random in [−12, +12]
+    RMSSD: uniform random in [10.0, 28.0]
+    Inserted via executemany() after each episode row.
+
+clear_all_data() → None
+  DELETE FROM episode_datapoints
+  DELETE FROM episodes
+  DELETE FROM sqlite_sequence WHERE name IN ('episodes', 'episode_datapoints')
+    (resets AUTOINCREMENT counters so IDs restart from 1 on next seed)
+  Wrapped in try/except — sqlite_sequence may not exist on fresh DB.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. ANALYTICS ENGINE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: server/pattern_analyzer.py
+
+get_summary() → dict
+  Fetches all episodes from DB (no date limit — full history scan).
+
+  CALCULATIONS:
+    this_week:   count where start_time >= (now - 7 days)
+    this_month:  count where start_time >= (now - 30 days)
+    prev_week:   count where start_time in [(now - 14 days), (now - 7 days))
+
+    avg_peak_stress:    mean of peak_stress across all episodes
+    avg_duration_seconds: mean of duration_seconds across all episodes
+
+    risk_distribution:  Counter over analysis_json["risk_level"] for all episodes
+                        with valid JSON. Episodes with null or malformed JSON
+                        are excluded from risk counts.
+
+    top_triggers:       Counter over analysis_json["trigger"] values.
+                        "Unknown" values are excluded.
+                        Top 5 returned by most_common(5).
+
+    trend:
+      this_week > prev_week  → "worsening"
+      this_week < prev_week  → "improving"
+      this_week == prev_week → "stable"
+
+get_heatmap() → list
+  Fetches only start_time column from all episodes.
+  For each timestamp: extract (weekday, hour) — weekday is 0=Monday, 6=Sunday.
+  Returns list of {day, hour, count} only for cells with count > 0.
+  Cells with 0 episodes are not returned (sparse representation).
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. FRONTEND — TYPESCRIPT INTERFACES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: app/src/types/stress.ts
+
+  StressReading {
+    bpm: number
+    stress: number
+    rmssd: number
+    rr_intervals: number[]
+    source: string
+    alert: boolean
+    timestamp: number        ← added client-side (Date.now()) on receipt
+  }
+
+  WsMessage = Omit<StressReading, 'timestamp'>
+    ← shape of the raw WebSocket frame (no timestamp field)
+
+  EpisodeAnalysis {
+    trigger: string
+    recommendation: string
+    risk_level: 'low' | 'medium' | 'high'
+  }
+
+  Episode {
+    id: number
+    start_time: string       ← ISO-8601 UTC
+    end_time: string
+    peak_stress: number
+    avg_bpm: number
+    duration_seconds: number
+    analysis_json: string | null   ← raw JSON string, parsed client-side
+    parent_notes: string | null
+  }
+
+  Datapoint {
+    id: number
+    episode_id: number
+    timestamp: string
+    bpm: number
+    stress: number
+    rmssd: number
+  }
+
+  AnalyticsSummary {
+    total_episodes: number
+    episodes_this_week: number
+    episodes_this_month: number
+    avg_peak_stress: number
+    avg_duration_seconds: number
+    risk_distribution: { low: number; medium: number; high: number }
+    trend: string
+    top_triggers: { trigger: string; count: number }[]
+  }
+
+  HeatmapCell {
+    day: number     ← 0=Monday … 6=Sunday
+    hour: number    ← 0–23
+    count: number
+  }
+
+  MedicalReport {
+    period: string
+    generated_at: string
+    summary: string
+    findings: string[]
+    recommendations: string[]
+    risk_assessment: string
+  }
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+15. FRONTEND — ZUSTAND STORE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: app/src/store/stressStore.ts
+
+State shape:
+  current:         StressReading | null   Most recent WebSocket frame
+  history:         StressReading[]        Rolling window, max 300 items (5 min at 1/s)
+  episodes:        Episode[]              Fetched from GET /episodes
+  connected:       boolean                WebSocket connection status
+  alertDismissed:  boolean                Whether user dismissed the current crisis alert
+
+Actions:
+  setReading(reading):
+    Appends to history (slicing to last 299 before adding).
+    Resets alertDismissed to false when reading.alert is false —
+    ensures next crisis episode shows the alert again automatically.
+
+  setEpisodes(episodes): Replaces episodes array.
+  setConnected(connected): Sets connection flag.
+  dismissAlert(): Sets alertDismissed = true.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+16. FRONTEND — WEBSOCKET HOOK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: app/src/hooks/useStressData.ts
+
+Mounted once in App.tsx via useStressData().
+
+WEBSOCKET CONNECTION:
+  Exponential backoff: [1s, 2s, 4s, 8s, 16s, 30s] per retry.
+  Max retries: 10. After 10 failed attempts, stops reconnecting.
+
+  onopen:  setConnected(true), reset retry counter, call fetchEpisodes()
+  onmessage: parse JSON, call setReading({...data, timestamp: Date.now()})
+  onclose: setConnected(false), schedule reconnect with next backoff delay
+  onerror: close the socket (triggers onclose → reconnect)
+
+EPISODE POLLING:
+  setInterval every 10,000ms calling fetchEpisodes().
+  This ensures the episode list stays current after new episodes are logged
+  without requiring a page refresh.
+  GET /episodes → setEpisodes(data)
+
+CLEANUP:
+  On component unmount: closes WebSocket, clears backoff timer, clears interval.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+17. FRONTEND — COMPONENT INVENTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+App.tsx
+  Three tabs: 'monitor' | 'dashboard' | 'doctor'
+  Header: NeuroPulse branding, Telegram bot link, connection status indicator.
+  Renders AlertScreen as a full-page overlay outside the tab system (always
+  visible when alert=true and not dismissed).
+  Routes tab to StressMeter+DemoControls | ParentDashboard | DoctorDashboard.
+
+StressMeter.tsx
+  Props: stress, bpm, rmssd
+  Displays: animated circular gauge, stress percentage, BPM, RMSSD values.
+  History sparkline from useStressStore().history (last 300 readings).
+  Uses Framer Motion for gauge animation.
+
+AlertScreen.tsx
+  Props: visible: boolean
+  Full-screen red overlay with pulsing animation and "Dismiss" button.
+  Calls store.dismissAlert() on dismiss.
+  Portal or z-index above all other content.
+
+DemoControls.tsx
+  Section 1 — Stress simulator:
+    Range slider (0–100) → POST /demo/stress/{level/100}
+    "Rising Stress" button → POST /demo/scenario/rising (disables for 31s)
+    "Reset" button → POST /demo/scenario/reset
+  Section 2 — Data mode:
+    "Load Demo Month" button → POST /demo/seed → window.location.reload() after 1.2s
+    "Reset to Empty" button  → POST /demo/clear → window.location.reload() after 0.9s
+    Active mode is highlighted (purple for filled, green for empty).
+    Dot indicator on active button.
+
+ParentDashboard.tsx
+  Reads episodes from useStressStore().
+  Renders an episode card per item: time, duration, stress, BPM, AI trigger,
+  risk badge, parent notes preview.
+
+NonverbalButtons.tsx
+  Three large buttons: "quiet", "home", "help"
+  On click: POST /nonverbal/{key}
+  No confirmation or loading state — fire-and-forget.
+
+DoctorDashboard.tsx
+  Four tabs: 'overview' | 'patterns' | 'episodes' | 'report'
+  All data fetched independently (not from store) via useEffect on mount.
+
+  OVERVIEW TAB:
+    Fetches GET /analytics/summary on mount.
+    StatCard components for: total_episodes, this_week, this_month,
+    avg_peak_stress, avg_duration_seconds.
+    Risk distribution: colored squares (green/yellow/red) with counts.
+    Trend badge with arrow icon (↑ worsening, ↓ improving, → stable).
+    Top triggers list (up to 5, with count).
+
+  PATTERNS TAB:
+    Episodes-by-day bar chart (Recharts BarChart):
+      Aggregates episodes from store by day-of-week.
+      Only rendered if at least one day has count > 0 (prevents Recharts
+      NaN crash on zero-height bars — known library bug with radius arrays).
+      YAxis domain set to [0, maxCount + 1] explicitly.
+      radius={4} (scalar, not array — avoids the crash).
+    Heatmap (7×24 CSS grid):
+      Fetches GET /analytics/heatmap on mount.
+      Each cell colored rgba(139, 92, 246, opacity) where opacity =
+      count / maxCount. Zero-count cells are transparent.
+      Axis labels: hours 0–23 on X, day names on Y.
+
+  EPISODES TAB:
+    Fetches GET /episodes on mount (supplemented by store).
+    Each episode card:
+      Header: start_time formatted, duration, peak stress, avg BPM.
+      Risk badge (color-coded).
+      AI trigger text (parsed from analysis_json with try/catch).
+      Parent notes in amber text (if present).
+      "+ Add observations" / "✏️ Edit observations" button.
+      Textarea with amber border when editing. Save / Cancel buttons.
+        Save: PATCH /episodes/{id}/notes → stored in localNotes state
+              for immediate UI update without re-fetch.
+    EpisodeTimeline (inline sub-component):
+      Fetches GET /episodes/{id}/datapoints on expand.
+      Renders LineChart (Recharts) with stress line (purple) and BPM line (pink).
+      Dual Y-axes. Uses percentage and BPM labels.
+
+  REPORT TAB:
+    Radio select: Weekly | Monthly.
+    "Generate Report" button → GET /report/{period}.
+    Shows loading spinner during fetch.
+    Renders: summary paragraph, findings list, recommendations list,
+    risk assessment, generated_at timestamp.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+18. HARDWARE — ESP32 + MAX30102
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MICROCONTROLLER: ESP32 (any variant with WiFi)
+SENSOR: MAX30102 — optical pulse oximeter and heart rate sensor
+  Interface: I2C (SDA, SCL pins)
+  Measurement: Red (660 nm) and infrared (880 nm) LEDs + photodetector
+  Output: raw ADC values → firmware extracts BPM and RR intervals
+
+WHAT THE FIRMWARE SENDS TO THE SERVER
+  Per measurement cycle (target: every 1 second), the ESP32 POSTs or sends
+  over WebSocket to the server:
+  { "bpm": float, "rmssd": float, "rr_intervals": [float, ...], "source": "esp32" }
+
+  RR intervals are the inter-beat intervals in milliseconds. The server's
+  stress_engine does not compute RMSSD from raw RR intervals — it expects
+  RMSSD to be pre-computed by the ESP32 firmware. The firmware uses a rolling
+  window of the last N RR intervals.
+
+  RMSSD formula (computed on device):
+    RMSSD = sqrt( mean( (RR[i+1] - RR[i])^2 for i in range(N-1) ) )
+
+SWITCHING FROM SIMULATOR TO REAL DEVICE
+  Set DATA_SOURCE=real in server/.env (or Railway Variables).
+  The data_source.py module checks this at startup and returns a RealSensor
+  instance from get_data_source() instead of the simulator.
+  Everything else in main.py is unchanged — same stress engine, same episode
+  detection, same WebSocket broadcast.
+
+COST BREAKDOWN
+  ESP32 development board: ~$5–8 USD
+  MAX30102 breakout module: ~$3–6 USD
+  Total hardware per unit:  ~$8–14 USD
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+19. DEPLOYMENT CONFIGURATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BACKEND — RAILWAY
+  Start command: python server/main.py
+    (uvicorn.run("main:app", host="0.0.0.0", port=PORT) inside __main__ block)
+  Environment variables set in Railway dashboard:
+    OPENAI_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_USER_NAME
+  PORT is injected automatically by Railway.
+  SQLite DB file (episodes.db) lives in the working directory of the Railway
+  container. It persists as long as the deployment is not restarted from zero.
+  For production data persistence, a Railway Volume should be mounted.
+
+FRONTEND — VERCEL
+  Build command: npm run build  (runs tsc && vite build)
+  Output directory: dist/
+  Environment variables set in Vercel project settings:
+    VITE_API_URL  (HTTPS URL of Railway backend)
+    VITE_WS_URL   (WSS URL of Railway backend)
+  These are inlined into the JS bundle at build time.
+
+CORS
+  Backend allows all origins (*), all methods, all headers, credentials=True.
+  This is intentional for a hackathon prototype. Production would restrict
+  allow_origins to the specific Vercel deployment URL.
+
+KNOWN RECHARTS BUG WORKAROUNDS (implemented in DoctorDashboard.tsx)
+  Bug: radius={[topLeft, topRight, bottomRight, bottomLeft]} on BarChart bars
+       causes NaN SVG path coordinates when bar height is zero, crashing the
+       entire React tree to a white screen.
+  Fix 1: Only render BarChart when data has at least one bar with count > 0.
+  Fix 2: Use radius={4} (scalar) instead of the array form.
+  Fix 3: Set explicit YAxis domain={[0, maxCount + 1]} to prevent auto-scaling
+         issues on small datasets.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+20. SECURITY NOTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  - server/.env is in .gitignore and has never been committed.
+  - OPENAI_API_KEY and TELEGRAM_BOT_TOKEN exist only in server/.env locally
+    and in Railway Variables in production.
+  - No authentication or authorization is implemented on any endpoint.
+    This is intentional for a hackathon prototype. All endpoints are public.
+  - The demo seed and clear endpoints are equally public. In production these
+    would be protected by an admin token or removed entirely.
+  - load_dotenv() is anchored to the server directory:
+      load_dotenv(Path(__file__).parent / ".env")
+    This prevents the CWD-relative path from failing when the server is
+    started from a parent directory (which caused a Telegram bot token
+    not-found bug during development).
+  - SQLite queries use parameterized statements throughout (no string
+    interpolation into SQL) — no SQL injection surface.
