@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -32,6 +33,19 @@ from report_generator import generate_report
 from demo_seeder import seed_demo_data, clear_all_data
 
 connected_clients: list[WebSocket] = []
+device_clients: list[WebSocket] = []
+
+# Rolling buffer of RR intervals from ESP32 for RMSSD calculation
+_device_rr_buffer: list[float] = []
+_DEVICE_RR_BUFFER_SIZE = 10
+
+
+def _compute_rmssd(rr_buf: list[float]) -> float:
+    """Compute RMSSD (ms) from a list of successive RR intervals."""
+    if len(rr_buf) < 2:
+        return 45.0  # default: resting baseline
+    diffs = [rr_buf[i + 1] - rr_buf[i] for i in range(len(rr_buf) - 1)]
+    return round(math.sqrt(sum(d * d for d in diffs) / len(diffs)), 1)
 
 # DB episode tracking (stress >= 90%)
 _episode_active = False
@@ -231,6 +245,98 @@ async def websocket_endpoint(ws: WebSocket) -> None:
     finally:
         if ws in connected_clients:
             connected_clients.remove(ws)
+
+
+@app.websocket("/ws/device")
+async def device_websocket_endpoint(ws: WebSocket) -> None:
+    """
+    Endpoint for ESP32 / hardware devices (ArduinoWebsockets).
+    - Device SENDS plain JSON: {"bpm": 72, "rr_ms": 833, "spo2": 98, "finger": true}
+    - Server processes the reading and broadcasts stress payload to all browser clients.
+    - Device never receives any messages (avoids ArduinoWebsockets drop-on-incoming-data bug).
+    - Accepts both text and binary WebSocket frames.
+    """
+    client_addr = getattr(ws.client, "host", "unknown")
+    print(f"[device] ESP32 connected from {client_addr}", flush=True)
+    await ws.accept()
+    device_clients.append(ws)
+    try:
+        while True:
+            # Use low-level receive() so we handle both text and binary frames
+            # without crashing. receive_text() raises KeyError on binary frames.
+            msg = await ws.receive()
+
+            if msg["type"] == "websocket.disconnect":
+                print(f"[device] ESP32 disconnected cleanly (code={msg.get('code')})", flush=True)
+                break
+
+            # Extract payload — ArduinoWebsockets may send text or binary
+            raw: str | None = msg.get("text")
+            if raw is None:
+                raw_bytes: bytes | None = msg.get("bytes")
+                if raw_bytes:
+                    raw = raw_bytes.decode("utf-8", errors="ignore")
+
+            if not raw:
+                print("[device] empty frame received, skipping", flush=True)
+                continue
+
+            print(f"[device] raw frame: {raw!r}", flush=True)
+
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                print(f"[device] JSON parse error: {exc}", flush=True)
+                continue
+
+            # Skip readings when sensor has no finger contact
+            if not data.get("finger", True):
+                continue
+
+            bpm = float(data.get("bpm", 72))
+            rr_ms = float(data.get("rr_ms", 833))
+
+            # Accumulate RR intervals and compute RMSSD
+            _device_rr_buffer.append(rr_ms)
+            if len(_device_rr_buffer) > _DEVICE_RR_BUFFER_SIZE:
+                _device_rr_buffer.pop(0)
+            rmssd = _compute_rmssd(_device_rr_buffer)
+
+            stress = calculate_stress(bpm, rmssd)
+            alert = stress >= 90.0
+
+            payload = json.dumps(
+                {
+                    "bpm": round(bpm, 1),
+                    "stress": stress,
+                    "rmssd": rmssd,
+                    "rr_intervals": [round(rr_ms, 1)],
+                    "source": "device",
+                    "alert": alert,
+                }
+            )
+
+            print(f"[device] broadcasting stress={stress}% bpm={bpm} to {len(connected_clients)} clients", flush=True)
+
+            # Forward processed reading to all browser clients
+            dead: list[WebSocket] = []
+            for client in list(connected_clients):
+                try:
+                    await client.send_text(payload)
+                except Exception:
+                    dead.append(client)
+            for client in dead:
+                if client in connected_clients:
+                    connected_clients.remove(client)
+
+    except WebSocketDisconnect as exc:
+        print(f"[device] WebSocketDisconnect: code={exc.code}", flush=True)
+    except Exception as exc:
+        print(f"[device] Unexpected error: {type(exc).__name__}: {exc}", flush=True)
+    finally:
+        if ws in device_clients:
+            device_clients.remove(ws)
+        print(f"[device] ESP32 connection closed. Active device connections: {len(device_clients)}", flush=True)
 
 
 @app.get("/episodes")
